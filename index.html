@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HO Krat App</title>
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: radial-gradient(circle at top, #2b2b2f, #050505 65%);
+      color: white;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .card {
+      width: min(90vw, 420px);
+      padding: 32px 24px;
+      border-radius: 36px;
+      background: rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(24px);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+      text-align: center;
+    }
+
+    .small {
+      color: #a1a1a6;
+      font-size: 19px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+    }
+
+    .title {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 0.95;
+      margin: 8px 0 34px;
+      letter-spacing: -1.5px;
+    }
+
+    button {
+      width: 165px;
+      height: 165px;
+      border-radius: 50%;
+      border: none;
+      background: white;
+      color: black;
+      font-size: 31px;
+      font-weight: 900;
+      box-shadow: 0 15px 40px rgba(255, 255, 255, 0.25);
+      transition: 0.12s ease;
+    }
+
+    button:active {
+      transform: scale(0.94);
+      opacity: 0.85;
+    }
+
+    .answer {
+      margin-top: 38px;
+      font-size: 38px;
+      font-weight: 900;
+      min-height: 48px;
+    }
+
+    .sub {
+      margin-top: 8px;
+      color: #a1a1a6;
+      font-size: 18px;
+      min-height: 24px;
+    }
+
+    .popup {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+
+    .popup-box {
+      width: min(88vw, 360px);
+      padding: 26px;
+      border-radius: 28px;
+      background: rgba(30, 30, 32, 0.96);
+      box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65);
+      text-align: center;
+    }
+
+    .popup-title {
+      font-size: 25px;
+      font-weight: 900;
+      margin-bottom: 22px;
+    }
+
+    .popup-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    .popup-buttons button {
+      flex: 1;
+      height: 56px;
+      border-radius: 18px;
+      font-size: 20px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <div class="small">IS HET TIJD VOOR</div>
+    <div class="title">EEN HO KRAT?</div>
+
+    <button onclick="checkHoKrat()">CHECK</button>
+
+    <div class="answer" id="answer">Druk op de knop.</div>
+    <div class="sub" id="sub"></div>
+  </div>
+
+  <div class="popup" id="popup">
+    <div class="popup-box">
+      <div class="popup-title">HEBBIE AL EEN KRAT GEHAALD DAN?</div>
+      <div class="popup-buttons">
+        <button onclick="alreadyGotOne()">Ja</button>
+        <button onclick="needOne()">Nee</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function isHoKratTime() {
+      const now = new Date();
+      const day = now.getDay();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+
+      const thursday =
+        day === 4 &&
+        minutes >= 19 * 60 + 15 &&
+        minutes <= 23 * 60 + 59;
+
+      const sunday =
+        day === 0 &&
+        minutes >= 7 * 60 &&
+        minutes <= 20 * 60;
+
+      return thursday || sunday;
+    }
+
+    function setResult(answer, sub) {
+      document.getElementById("answer").textContent = answer;
+      document.getElementById("sub").textContent = sub;
+    }
+
+    function defaultNo() {
+      const r = Math.random();
+
+      if (r < 0.82) {
+        setResult("NEE.", "Nog niet. Rustig blijven.");
+      } else if (r < 0.92) {
+        setResult("Vraag het na aan de HO.", "Officiële goedkeuring vereist.");
+      } else {
+        setResult("Check met de Spiritueel Leider.", "Die voelt dit soort dingen aan.");
+      }
+    }
+
+    function checkHoKrat() {
+      if (isHoKratTime()) {
+        document.getElementById("popup").style.display = "flex";
+      } else {
+        defaultNo();
+      }
+    }
+
+    function alreadyGotOne() {
+      document.getElementById("popup").style.display = "none";
+      setResult("NEE.", "Dan is het geregeld.");
+    }
+
+    function needOne() {
+      document.getElementById("popup").style.display = "none";
+      setResult("JA MAN.", "Tijd voor een HO krat.");
+
+      if (navigator.vibrate) {
+        navigator.vibrate([80, 60, 120]);
+      }
+    }
+  </script>
+</body>
+</html>
