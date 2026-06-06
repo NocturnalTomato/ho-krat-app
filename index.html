@@ -76,6 +76,14 @@
       min-height: 24px;
     }
 
+    .version {
+      margin-top: 28px;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+    }
+
     .popup {
       display: none;
       position: fixed;
@@ -124,6 +132,8 @@
 
     <div class="answer" id="answer">Druk op de knop.</div>
     <div class="sub" id="sub"></div>
+
+    <div class="version">HO KRAT ORACLE v1.0</div>
   </div>
 
   <div class="popup" id="popup">
@@ -139,7 +149,7 @@
   <script>
     function isHoKratTime() {
       const now = new Date();
-      const day = now.getDay();
+      const day = now.getDay(); // 0 = zondag, 4 = donderdag
       const minutes = now.getHours() * 60 + now.getMinutes();
 
       const thursday =
@@ -163,12 +173,12 @@
     function defaultNo() {
       const r = Math.random();
 
-      if (r < 0.82) {
-        setResult("NEE.", "Nog niet. Rustig blijven.");
-      } else if (r < 0.92) {
-        setResult("Vraag het na aan de HO.", "Officiële goedkeuring vereist.");
+      if (r < 0.975) {
+        setResult("NEE.", "Nog niet, er is geen training of wedstrijd.");
+      } else if (r < 0.995) {
+        setResult("Check met de Spiritueel Leider.", "De signalen zijn onduidelijk.");
       } else {
-        setResult("Check met de Spiritueel Leider.", "Die voelt dit soort dingen aan.");
+        setResult("Vraag het aan de HO.", "Alleen de HO kan hierover oordelen.");
       }
     }
 
@@ -182,7 +192,7 @@
 
     function alreadyGotOne() {
       document.getElementById("popup").style.display = "none";
-      setResult("NEE.", "Dan is het geregeld.");
+      setResult("NEE.", "Waarom druk je op deze knop dan?");
     }
 
     function needOne() {
