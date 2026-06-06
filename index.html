@@ -55,6 +55,7 @@
       font-weight: 900;
       box-shadow: 0 15px 40px rgba(255, 255, 255, 0.25);
       transition: 0.12s ease;
+      cursor: pointer;
     }
 
     button:active {
@@ -133,41 +134,54 @@
     <div class="answer" id="answer">Druk op de knop.</div>
     <div class="sub" id="sub"></div>
 
-    <div class="version">HO KRAT ORACLE v1.0</div>
+    <div class="version">HO KRAT ORACLE v1.1</div>
   </div>
 
   <div class="popup" id="popup">
     <div class="popup-box">
-      <div class="popup-title">HEBBIE AL EEN KRAT GEHAALD DAN?</div>
+      <div class="popup-title" id="popup-title"></div>
       <div class="popup-buttons">
-        <button onclick="alreadyGotOne()">Ja</button>
-        <button onclick="needOne()">Nee</button>
+        <button onclick="popupYes()">Ja</button>
+        <button onclick="popupNo()">Nee</button>
       </div>
     </div>
   </div>
 
   <script>
-    function isHoKratTime() {
+    let popupMode = null;
+
+    function getCurrentMoment() {
       const now = new Date();
       const day = now.getDay(); // 0 = zondag, 4 = donderdag
       const minutes = now.getHours() * 60 + now.getMinutes();
 
-      const thursday =
+      const isThursday =
         day === 4 &&
         minutes >= 19 * 60 + 15 &&
         minutes <= 23 * 60 + 59;
 
-      const sunday =
+      const isSunday =
         day === 0 &&
         minutes >= 7 * 60 &&
         minutes <= 20 * 60;
 
-      return thursday || sunday;
+      return { isThursday, isSunday };
     }
 
     function setResult(answer, sub) {
       document.getElementById("answer").textContent = answer;
       document.getElementById("sub").textContent = sub;
+    }
+
+    function openPopup(mode, title) {
+      popupMode = mode;
+      document.getElementById("popup-title").textContent = title;
+      document.getElementById("popup").style.display = "flex";
+    }
+
+    function closePopup() {
+      document.getElementById("popup").style.display = "none";
+      popupMode = null;
     }
 
     function defaultNo() {
@@ -183,22 +197,50 @@
     }
 
     function checkHoKrat() {
-      if (isHoKratTime()) {
-        document.getElementById("popup").style.display = "flex";
+      const moment = getCurrentMoment();
+
+      if (moment.isThursday || moment.isSunday) {
+        openPopup("firstCrate", "HEBBIE AL EEN KRAT GEHAALD DAN?");
       } else {
         defaultNo();
       }
     }
 
-    function alreadyGotOne() {
-      document.getElementById("popup").style.display = "none";
-      setResult("NEE.", "Waarom druk je op deze knop dan?");
+    function popupYes() {
+      const moment = getCurrentMoment();
+
+      if (popupMode === "firstCrate") {
+        if (moment.isThursday) {
+          openPopup("secondCrate", "ZIJN ER MEER DAN 12 MAN?");
+        } else {
+          closePopup();
+          setResult("NEE.", "Waarom druk je op deze knop dan?");
+        }
+        return;
+      }
+
+      if (popupMode === "secondCrate") {
+        closePopup();
+        setResult("JA MAN.", "Tijd voor een tweede HO krat.");
+        vibratePositive();
+      }
     }
 
-    function needOne() {
-      document.getElementById("popup").style.display = "none";
-      setResult("JA MAN.", "Tijd voor een HO krat.");
+    function popupNo() {
+      if (popupMode === "firstCrate") {
+        closePopup();
+        setResult("JA MAN.", "Tijd voor een HO krat.");
+        vibratePositive();
+        return;
+      }
 
+      if (popupMode === "secondCrate") {
+        closePopup();
+        setResult("NEE.", "Zorg volgende keer voor meer mensen bij de training.");
+      }
+    }
+
+    function vibratePositive() {
       if (navigator.vibrate) {
         navigator.vibrate([80, 60, 120]);
       }
