@@ -134,7 +134,7 @@
     <div class="answer" id="answer">Druk op de knop.</div>
     <div class="sub" id="sub"></div>
 
-    <div class="version">HO KRAT ORACLE v1.1</div>
+    <div class="version">HO KRAT ORACLE v1.2</div>
   </div>
 
   <div class="popup" id="popup">
@@ -149,10 +149,55 @@
 
   <script>
     let popupMode = null;
+    let lastPress = 0;
+    const COOLDOWN_MS = 3000;
+
+    const cooldownTexts = [
+      "Rustig. De Spiritueel Leider denkt na.",
+      "Het Orakel heeft je vraag gehoord.",
+      "De signalen zijn nog niet binnen.",
+      "De Spiritueel Leider kijkt zwijgend in de verte.",
+      "Er wordt nog naar een teken gezocht.",
+      "Geduld is ook een deugd.",
+      "Het kratlot is nog niet geworpen.",
+      "De biergoden laten op zich wachten.",
+      "Het universum twijfelt nog.",
+      "Je dorst is genoteerd.",
+      "De Spiritueel Leider heeft zijn ogen gesloten.",
+      "Er is beweging in de kratenergie.",
+      "Het Orakel mompelt iets onverstaanbaars.",
+      "Een voorteken wordt momenteel geïnterpreteerd.",
+      "De bierchakra's zijn nog niet uitgelijnd.",
+      "De Grote Dorst is nog niet ontwaakt.",
+      "Er wordt naar het schuim gekeken.",
+      "Het antwoord drijft ergens bovenin.",
+      "De tap stroomt nog niet in deze richting.",
+      "Het kratpad is mistig.",
+      "Er staat nog genoeg in de koelkast.",
+      "Eerst deze opmaken.",
+      "Je loopt op de zaken vooruit.",
+      "Het draagvlak voor een krat wordt onderzocht.",
+      "De sfeer is nog niet kratwaardig.",
+      "Het kratmoment is nog niet aangebroken.",
+      "Het huis is nog niet overtuigd.",
+      "De timing voelt geforceerd.",
+      "Het kratuniversum zegt: straks.",
+      "Nog een keer drukken helpt niet.",
+      "Verrassend genoeg is het antwoord niet veranderd.",
+      "Mooie poging.",
+      "Dat was 0% effectiever.",
+      "Je enthousiasme is opgemerkt.",
+      "Het systeem blijft bij zijn standpunt.",
+      "De knop wordt hier niet slimmer van.",
+      "Interessante strategie.",
+      "Het Orakel voelt zich onder druk gezet.",
+      "Dit onderzoek is al afgerond.",
+      "Er hangt iets in de lucht. Mogelijk pils."
+    ];
 
     function getCurrentMoment() {
       const now = new Date();
-      const day = now.getDay(); // 0 = zondag, 4 = donderdag
+      const day = now.getDay();
       const minutes = now.getHours() * 60 + now.getMinutes();
 
       const isThursday =
@@ -166,6 +211,10 @@
         minutes <= 20 * 60;
 
       return { isThursday, isSunday };
+    }
+
+    function randomFrom(list) {
+      return list[Math.floor(Math.random() * list.length)];
     }
 
     function setResult(answer, sub) {
@@ -197,6 +246,15 @@
     }
 
     function checkHoKrat() {
+      const now = Date.now();
+
+      if (now - lastPress < COOLDOWN_MS) {
+        setResult("RUSTIG.", randomFrom(cooldownTexts));
+        return;
+      }
+
+      lastPress = now;
+
       const moment = getCurrentMoment();
 
       if (moment.isThursday || moment.isSunday) {
