@@ -2,7 +2,8 @@ name: Update wedstrijd
 
 on:
   schedule:
-    - cron: "0 5 * * *"
+    - cron: "0 5 * * *"   # elke dag 05:00 UTC
+
   workflow_dispatch:
 
 permissions:
@@ -13,18 +14,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - run: node scrape.js
+      - name: Run scraper
+        run: node scrape.js
 
-      - name: Commit json
+      - name: Commit updated files
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
+
           git add wedstrijd.json
-          git diff --cached --quiet || git commit -m "Update wedstrijd"
+          git add debug_scrape.json
+          git add debug_full_page.html
+
+          git diff --cached --quiet || git commit -m "Update wedstrijd data"
+
           git push
