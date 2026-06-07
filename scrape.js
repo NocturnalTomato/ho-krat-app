@@ -3,72 +3,63 @@ const fs = require("fs");
 
 const URL = "https://www.groengeel.nl/index.php?page=Heren8&sid=1";
 
-function fetch(url) {
+function fetchUrl(url) {
   return new Promise((resolve, reject) => {
-    https
-      .get(url, (res) => {
-        let data = "";
-
-        res.on("data", (chunk) => {
-          data += chunk;
-        });
-
-        res.on("end", () => {
-          resolve(data);
-        });
-      })
-      .on("error", reject);
+    https.get(url, { headers: { "User-Agent": "Mozilla/5.0" } }, (res) => {
+      let data = "";
+      res.on("data", chunk => data += chunk);
+      res.on("end", () => resolve(data));
+    }).on("error", reject);
   });
 }
 
-function formatDate(d) {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
+function todayNL() {
+  return new Intl.DateTimeFormat("nl-NL", {
+    timeZone: "Europe/Amsterdam",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date()).replaceAll("/", "-");
+}
 
-  return `${dd}-${mm}-${yyyy}`;
+function clean(s) {
+  return s.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 }
 
 (async () => {
-  const html = await fetch(URL);
-  const today = formatDate(new Date());
+  const html = await fetchUrl(URL);
+  const today = todayNL();
 
   let matchToday = false;
   let nextMatch = null;
   let position = null;
 
-  const homeRegex =
-    /<div class="game-schedule-event[\s\S]*?<div class="home-team">\s*H8\s*<\/div>[\s\S]*?<div class="away-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
+  const scheduleMatch = html.match(/<h4[^>]*>\s*Wedstrijdschema\s*<\/h4>[\s\S]*?(<div class="game-schedule-event[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/div>)/i);
 
-  const awayRegex =
-    /<div class="game-schedule-event[\s\S]*?<div class="home-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<div class="away-team">\s*H8\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
+  if (scheduleMatch) {
+    const block = scheduleMatch[1];
 
-  let match = html.match(homeRegex);
-  let homeGame = true;
+    const home = clean((block.match(/<div class="home-team">\s*([\s\S]*?)<\/div>/i) || [])[1] || "");
+    const away = clean((block.match(/<div class="away-team">\s*([\s\S]*?)<\/div>/i) || [])[1] || "");
+    const date = clean((block.match(/<span class="date">\s*([\s\S]*?)<\/span>/i) || [])[1] || "");
+    const timeMatch = block.match(/<\/span>\s*([0-9]{2}:[0-9]{2})/);
+    const time = timeMatch ? timeMatch[1] : null;
 
-  if (!match) {
-    match = html.match(awayRegex);
-    homeGame = false;
+    if (home === "H8" || away === "H8") {
+      nextMatch = {
+        opponent: home === "H8" ? away : home,
+        date,
+        time,
+        home: home === "H8"
+      };
+
+      matchToday = date === today;
+    }
   }
 
-  if (match) {
-    nextMatch = {
-      opponent: match[1].trim(),
-      date: match[2],
-      time: match[3],
-      home: homeGame
-    };
-
-    matchToday = match[2] === today;
-  }
-
-  const positionRegex =
-    /table-row--my-team[\s\S]*?<span class="pool-standing pool-standing__home-team">\s*([0-9]+)\./;
-
-  const positionMatch = html.match(positionRegex);
-
-  if (positionMatch) {
-    position = parseInt(positionMatch[1]);
+  const posMatch = html.match(/<tr class="table-row--my-team">[\s\S]*?<span[^>]*>\s*([0-9]+)\./i);
+  if (posMatch) {
+    position = parseInt(posMatch[1], 10);
   }
 
   const output = {
@@ -80,6 +71,5 @@ function formatDate(d) {
   };
 
   fs.writeFileSync("wedstrijd.json", JSON.stringify(output, null, 2));
-
   console.log(output);
 })();
