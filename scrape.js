@@ -1,83 +1,25 @@
-const https = require("https");
-const fs = require("fs");
+const homeRegex =
+  /<div class="game-schedule-event[\s\S]*?<div class="home-team">\s*H8\s*<\/div>[\s\S]*?<div class="away-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
 
-const URL =
-  "https://www.groengeel.nl/index.php?page=Heren8&sid=1";
+const awayRegex =
+  /<div class="game-schedule-event[\s\S]*?<div class="home-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<div class="away-team">\s*H8\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
 
-function fetch(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, (res) => {
-      let data = "";
+let match = html.match(homeRegex);
+let homeGame = true;
 
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-
-      res.on("end", () => {
-        resolve(data);
-      });
-
-    }).on("error", reject);
-  });
+if (!match) {
+  match = html.match(awayRegex);
+  homeGame = false;
 }
 
-function formatDate(d) {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = d.getFullYear();
+if (match) {
 
-  return `${dd}-${mm}-${yyyy}`;
-}
-
-(async () => {
-
-  const html = await fetch(URL);
-
-  const today = formatDate(new Date());
-
-  let matchToday = false;
-  let nextMatch = null;
-  let position = null;
-
-  const matchRegex =
-    /<div class="game-schedule-event is-home-game[\s\S]*?<div class="home-team">\s*H8\s*<\/div>[\s\S]*?<div class="away-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
-
-  const match = html.match(matchRegex);
-
-  if (match) {
-
-    nextMatch = {
-      opponent: match[1].trim(),
-      date: match[2],
-      time: match[3]
-    };
-
-    matchToday = match[2] === today;
-  }
-
-  const positionRegex =
-    /table-row--my-team[\s\S]*?<span class="pool-standing pool-standing__home-team">\s*([0-9]+)\./;
-
-  const positionMatch =
-    html.match(positionRegex);
-
-  if (positionMatch) {
-    position = parseInt(positionMatch[1]);
-  }
-
-  const output = {
-    lastUpdated: new Date().toISOString(),
-    team: "Heren 8",
-    matchToday,
-    position,
-    nextMatch
+  nextMatch = {
+    opponent: match[1].trim(),
+    date: match[2],
+    time: match[3],
+    home: homeGame
   };
 
-  fs.writeFileSync(
-    "wedstrijd.json",
-    JSON.stringify(output, null, 2)
-  );
-
-  console.log(output);
-
-})();
+  matchToday = match[2] === today;
+}
