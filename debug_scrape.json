@@ -1,0 +1,30 @@
+{
+  "lastUpdated": "2026-06-07T21:18:55.066Z",
+  "htmlLength": 919,
+  "today": "07-06-2026",
+  "contains": {
+    "H8": false,
+    "Heren8": false,
+    "LeidenH7": false,
+    "Wedstrijdschema": false,
+    "tableRowMyTeam": false,
+    "GroenGeelH8": false
+  },
+  "indexes": {
+    "H8": -1,
+    "Heren8": -1,
+    "LeidenH7": -1,
+    "Wedstrijdschema": -1,
+    "tableRowMyTeam": -1,
+    "GroenGeelH8": -1
+  },
+  "snippets": {
+    "wedstrijdschema": null,
+    "h8": null,
+    "leidenH7": null,
+    "tableRowMyTeam": null,
+    "groenGeelH8": null
+  },
+  "eventsFound": 0,
+  "eventSummaries": []
+}
