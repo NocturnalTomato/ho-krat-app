@@ -249,7 +249,7 @@
       const now = Date.now();
 
       if (now - lastPress < COOLDOWN_MS) {
-        setResult("RUSTIG.", randomFrom(cooldownTexts));
+        setResult("Nee.", randomFrom(cooldownTexts));
         return;
       }
 
@@ -258,7 +258,7 @@
       const moment = getCurrentMoment();
 
       if (moment.isThursday || moment.isSunday) {
-        openPopup("firstCrate", "HEBBIE AL EEN KRAT GEHAALD DAN?");
+        openPopup("firstCrate", "HEB JE AL EEN KRAT GEHAALD DAN?");
       } else {
         defaultNo();
       }
