@@ -35,28 +35,41 @@ function formatDate(d) {
 
   const today = formatDate(new Date());
 
-  const matchRegex =
-    /<div class="home-team">\s*H8\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
-
-  const match = html.match(matchRegex);
-
   let matchToday = false;
   let nextMatch = null;
+  let position = null;
+
+  const matchRegex =
+    /<div class="game-schedule-event is-home-game[\s\S]*?<div class="home-team">\s*H8\s*<\/div>[\s\S]*?<div class="away-team">\s*([^<]+?)\s*<\/div>[\s\S]*?<span class="date">\s*([0-9]{2}-[0-9]{2}-[0-9]{4})[\s\S]*?<\/span>\s*([0-9]{2}:[0-9]{2})/;
+
+  const match = html.match(matchRegex);
 
   if (match) {
 
     nextMatch = {
-      date: match[1],
-      time: match[2]
+      opponent: match[1].trim(),
+      date: match[2],
+      time: match[3]
     };
 
-    matchToday = match[1] === today;
+    matchToday = match[2] === today;
+  }
+
+  const positionRegex =
+    /table-row--my-team[\s\S]*?<span class="pool-standing pool-standing__home-team">\s*([0-9]+)\./;
+
+  const positionMatch =
+    html.match(positionRegex);
+
+  if (positionMatch) {
+    position = parseInt(positionMatch[1]);
   }
 
   const output = {
     lastUpdated: new Date().toISOString(),
     team: "Heren 8",
     matchToday,
+    position,
     nextMatch
   };
 
