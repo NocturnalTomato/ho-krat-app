@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HO Krat App</title>
+<style>
+body{margin:0;height:100vh;background:radial-gradient(circle at top,#2b2b2f,#050505 65%);color:white;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display",Arial,sans-serif;display:flex;justify-content:center;align-items:center;overflow:hidden}
+.card{width:min(90vw,420px);padding:32px 24px;border-radius:36px;background:rgba(255,255,255,.08);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.16);box-shadow:0 30px 80px rgba(0,0,0,.55);text-align:center}
+.small{color:#a1a1a6;font-size:19px;font-weight:700;letter-spacing:1.5px}
+.title{font-size:42px;font-weight:900;line-height:.95;margin:8px 0 34px}
+button{width:165px;height:165px;border-radius:50%;border:none;background:white;color:black;font-size:31px;font-weight:900}
+.answer{margin-top:38px;font-size:38px;font-weight:900;min-height:48px}
+.sub{margin-top:8px;color:#a1a1a6;font-size:18px;min-height:24px}
+.version,.standing{margin-top:12px;color:rgba(255,255,255,.55);font-size:13px}
+.popup{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);justify-content:center;align-items:center}
+.popup-box{width:min(88vw,360px);padding:26px;border-radius:28px;background:rgba(30,30,32,.96);text-align:center}
+.popup-buttons{display:flex;gap:12px}.popup-buttons button{flex:1;height:56px;border-radius:18px;font-size:20px}
+</style>
+</head>
+<body>
+<div class="card">
+<div class="small">IS HET TIJD VOOR</div>
+<div class="title">EEN HO KRAT?</div>
+<button onclick="checkHoKrat()">CHECK</button>
+<div class="answer" id="answer">Druk op de knop.</div>
+<div class="sub" id="sub"></div>
+<div class="standing" id="standing"></div>
+<div class="version">HO KRAT ORACLE v1.2</div>
+</div>
+<div class="popup" id="popup"><div class="popup-box"><div id="popup-title"></div><div class="popup-buttons"><button onclick="popupYes()">Ja</button><button onclick="popupNo()">Nee</button></div></div></div>
+<script>
+let popupMode=null,wedstrijdData=null;
+async function loadWedstrijdData(){try{const r=await fetch("wedstrijd.json?t="+Date.now());wedstrijdData=await r.json();updateStanding()}catch(e){}}
+function updateStanding(){if(!wedstrijdData||wedstrijdData.position==null)return;let p=wedstrijdData.position,t="";if(p===1)t="Jullie staan 1e. Ga eens wat meer zuipen.";else if(p<=10)t=`Jullie staan ${p}e. Speel eens wat beter.`;else t=`Jullie staan ${p}e. Kan je niet hockeyen?`;document.getElementById("standing").textContent=t;if(wedstrijdData.nextMatch){document.getElementById("sub").textContent=`Volgende tegenstander: ${wedstrijdData.nextMatch.opponent} (${wedstrijdData.nextMatch.date})`;}};
+function getCurrentMoment(){const n=new Date();const d=n.getDay();const m=n.getHours()*60+n.getMinutes();return{isThursday:d===4&&m>=1155&&m<=1439,isSunday:d===0&&m>=420&&m<=1200};}
+function setResult(a,s){answer.textContent=a;sub.textContent=s}
+function openPopup(m,t){popupMode=m;document.getElementById("popup-title").textContent=t;popup.style.display="flex"}
+function closePopup(){popup.style.display="none";popupMode=null}
+function defaultNo(){setResult("NEE.","Nog niet, er is geen training of wedstrijd.")}
+async function checkHoKrat(){await loadWedstrijdData();const m=getCurrentMoment();if(wedstrijdData&&wedstrijdData.matchToday){openPopup("matchCrate","HEBBIE AL EEN KRAT GEHAALD DAN?");return;}if(m.isThursday){openPopup("trainingCrate","HEBBIE AL EEN KRAT GEHAALD DAN?");return;}defaultNo();}
+function popupYes(){if(popupMode==="matchCrate"){closePopup();setResult("NEE.","Eerst hockeyen.");return;}if(popupMode==="trainingCrate"){openPopup("secondCrate","ZIJN ER MEER DAN 12 MAN?");return;}if(popupMode==="secondCrate"){closePopup();setResult("JA MAN.","Tijd voor een tweede HO krat.");}}
+function popupNo(){if(popupMode==="matchCrate"){closePopup();const o=wedstrijdData?.nextMatch?.opponent||"de tegenstander";setResult("JA MAN.",`Vandaag tegen ${o}. Tijd voor een HO krat.`);return;}if(popupMode==="trainingCrate"){closePopup();setResult("JA MAN.","Tijd voor een HO krat.");return;}if(popupMode==="secondCrate"){closePopup();setResult("NEE.","Zorg volgende keer voor meer mensen bij de training.");}}
+window.addEventListener("load",loadWedstrijdData);
+</script></body></html>
