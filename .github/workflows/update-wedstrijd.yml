@@ -3,7 +3,6 @@ name: Update wedstrijd
 on:
   schedule:
     - cron: "0 5 * * *"
-
   workflow_dispatch:
 
 permissions:
@@ -26,9 +25,6 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-
           git add wedstrijd.json
-
           git diff --cached --quiet || git commit -m "Update wedstrijd"
-
           git push
