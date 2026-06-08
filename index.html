@@ -6,22 +6,26 @@
   <title>HO Krat App</title>
 
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
-      height: 100vh;
+      min-height: 100vh;
       background: radial-gradient(circle at top, #2b2b2f, #050505 65%);
       color: white;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", Arial, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: hidden;
+      padding: 18px;
     }
 
     .card {
-      width: min(90vw, 420px);
-      padding: 32px 24px;
-      border-radius: 36px;
+      width: min(94vw, 460px);
+      padding: 28px 22px;
+      border-radius: 34px;
       background: rgba(255, 255, 255, 0.08);
       backdrop-filter: blur(24px);
       border: 1px solid rgba(255, 255, 255, 0.16);
@@ -31,28 +35,28 @@
 
     .small {
       color: #a1a1a6;
-      font-size: 19px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
+      font-size: 17px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
     }
 
     .title {
-      font-size: 42px;
-      font-weight: 900;
+      font-size: 40px;
+      font-weight: 950;
       line-height: 0.95;
-      margin: 8px 0 34px;
+      margin: 8px 0 24px;
       letter-spacing: -1.5px;
     }
 
     button {
-      width: 165px;
-      height: 165px;
+      width: 150px;
+      height: 150px;
       border-radius: 50%;
       border: none;
       background: white;
       color: black;
-      font-size: 31px;
-      font-weight: 900;
+      font-size: 29px;
+      font-weight: 950;
       box-shadow: 0 15px 40px rgba(255, 255, 255, 0.25);
       transition: 0.12s ease;
       cursor: pointer;
@@ -64,24 +68,140 @@
     }
 
     .answer {
-      margin-top: 38px;
-      font-size: 38px;
-      font-weight: 900;
-      min-height: 48px;
+      margin-top: 28px;
+      font-size: 37px;
+      font-weight: 950;
+      min-height: 46px;
     }
 
     .sub {
-      margin-top: 8px;
+      margin-top: 6px;
       color: #a1a1a6;
-      font-size: 18px;
+      font-size: 17px;
       min-height: 24px;
+      line-height: 1.35;
+    }
+
+    .event-card {
+      margin-top: 24px;
+      padding: 18px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.11);
+      text-align: left;
+    }
+
+    .event-title {
+      font-size: 20px;
+      font-weight: 900;
+      margin-bottom: 4px;
+    }
+
+    .event-meta {
+      color: #a1a1a6;
+      font-size: 14px;
+      line-height: 1.35;
+    }
+
+    .countdown {
+      margin-top: 12px;
+      font-size: 28px;
+      font-weight: 950;
+      text-align: center;
+    }
+
+    .stats {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+    }
+
+    .stat {
+      padding: 10px 8px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 22px;
+      font-weight: 950;
+    }
+
+    .stat-label {
+      margin-top: 2px;
+      font-size: 11px;
+      color: #a1a1a6;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+    }
+
+    .chance-box {
+      margin-top: 14px;
+      display: grid;
+      gap: 9px;
+    }
+
+    .chance-row {
+      display: grid;
+      grid-template-columns: 112px 1fr 44px;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .bar {
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.13);
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: white;
+      width: 0%;
+    }
+
+    details {
+      margin-top: 14px;
+      color: #d8d8dc;
+      font-size: 14px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 850;
+      color: white;
+    }
+
+    .people {
+      margin-top: 10px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .people h4 {
+      margin: 0 0 5px;
+      font-size: 13px;
+      color: #a1a1a6;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .names {
+      line-height: 1.4;
+      font-size: 14px;
     }
 
     .version {
-      margin-top: 28px;
+      margin-top: 22px;
       color: rgba(255, 255, 255, 0.35);
-      font-size: 13px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 700;
       letter-spacing: 0.8px;
     }
 
@@ -106,7 +226,7 @@
 
     .popup-title {
       font-size: 25px;
-      font-weight: 900;
+      font-weight: 950;
       margin-bottom: 22px;
     }
 
@@ -131,10 +251,67 @@
 
     <button onclick="checkHoKrat()">CHECK</button>
 
-    <div class="answer" id="answer">Druk op de knop.</div>
-    <div class="sub" id="sub"></div>
+    <div class="answer" id="answer">Laden...</div>
+    <div class="sub" id="sub">Het Orakel leest de Spond-rollen.</div>
 
-    <div class="version">HO KRAT ORACLE v1.3</div>
+    <div class="event-card" id="eventCard" style="display:none;">
+      <div class="event-title" id="eventTitle"></div>
+      <div class="event-meta" id="eventMeta"></div>
+      <div class="countdown" id="countdown"></div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-value" id="attendingCount">-</div>
+          <div class="stat-label">KOMT</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="declinedCount">-</div>
+          <div class="stat-label">NIET</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="unansweredCount">-</div>
+          <div class="stat-label">LAF</div>
+        </div>
+      </div>
+
+      <div class="chance-box">
+        <div class="chance-row">
+          <div>HO-kans</div>
+          <div class="bar"><div class="bar-fill" id="hoBar"></div></div>
+          <div id="hoChance">-</div>
+        </div>
+        <div class="chance-row">
+          <div>2e krat</div>
+          <div class="bar"><div class="bar-fill" id="secondBar"></div></div>
+          <div id="secondChance">-</div>
+        </div>
+        <div class="chance-row">
+          <div>Escalatie</div>
+          <div class="bar"><div class="bar-fill" id="escalationBar"></div></div>
+          <div id="escalationChance">-</div>
+        </div>
+      </div>
+
+      <details>
+        <summary>Wie dan?</summary>
+        <div class="people">
+          <div>
+            <h4>Komt</h4>
+            <div class="names" id="attendingNames">-</div>
+          </div>
+          <div>
+            <h4>Komt niet</h4>
+            <div class="names" id="declinedNames">-</div>
+          </div>
+          <div>
+            <h4>Nog niks gezegd</h4>
+            <div class="names" id="unansweredNames">-</div>
+          </div>
+        </div>
+      </details>
+    </div>
+
+    <div class="version">HO KRAT ORACLE v2.0</div>
   </div>
 
   <div class="popup" id="popup">
@@ -150,245 +327,217 @@
   <script>
     let popupMode = null;
     let lastPress = 0;
+    let eventData = null;
+    let chanceData = null;
+
     const COOLDOWN_MS = 5000;
 
     const cooldownTexts = [
       "Rustig. De Spiritueel Leider denkt na.",
       "Het Orakel heeft je vraag gehoord.",
       "De signalen zijn nog niet binnen.",
-      "De Spiritueel Leider kijkt zwijgend in de verte.",
-      "Er wordt nog naar een teken gezocht.",
-      "Geduld is ook een deugd.",
-      "Het kratlot is nog niet geworpen.",
       "De biergoden laten op zich wachten.",
-      "Het universum twijfelt nog.",
-      "Je dorst is genoteerd.",
-      "De Spiritueel Leider heeft zijn ogen gesloten.",
-      "Er is beweging in de kratenergie.",
-      "Het Orakel mompelt iets onverstaanbaars.",
-      "Een voorteken wordt momenteel geïnterpreteerd.",
-      "De bierchakra's zijn nog niet uitgelijnd.",
-      "De Grote Dorst is nog niet ontwaakt.",
-      "Er wordt naar het schuim gekeken.",
-      "Het antwoord drijft ergens bovenin.",
-      "De tap stroomt nog niet in deze richting.",
-      "Het kratpad is mistig.",
-      "Er staat nog genoeg in de koelkast.",
-      "Eerst deze opmaken.",
-      "Je loopt op de zaken vooruit.",
-      "Het draagvlak voor een krat wordt onderzocht.",
-      "De sfeer is nog niet kratwaardig.",
-      "Het kratmoment is nog niet aangebroken.",
-      "Het huis is nog niet overtuigd.",
-      "De timing voelt geforceerd.",
-      "Het kratuniversum zegt: straks.",
-      "Nog een keer drukken helpt niet.",
-      "Verrassend genoeg is het antwoord niet veranderd.",
-      "Mooie poging.",
-      "Dat was 0% effectiever.",
-      "Je enthousiasme is opgemerkt.",
-      "Het systeem blijft bij zijn standpunt.",
-      "De knop wordt hier niet slimmer van.",
-      "Interessante strategie.",
-      "Het Orakel voelt zich onder druk gezet.",
-      "Dit onderzoek is al afgerond.",
-      "Er hangt iets in de lucht. Mogelijk pils.",
-      "De Spiritueel Leider roert in het niets.",
-      "De Spiritueel Leider heeft een wenkbrauw opgetrokken.",
-      "Het Orakel vraagt om kalmte.",
-      "Uw aanvraag is ceremonieel ontvangen.",
-      "De biergoden zijn nog aan het lunchen.",
-      "Er wordt nog naar de schuimkraag gekeken.",
-      "Het krat voelt zich niet gehaast.",
-      "De dorst is aanwezig. Het antwoord nog niet.",
-      "Het universum heeft uw verzoek in behandeling genomen.",
-      "Het Orakel bladert door oude voorspellingen.",
-      "De Spiritueel Leider heeft zachtjes 'hmmm' gezegd.",
-      "Er wordt momenteel professioneel getwijfeld.",
-      "De tekenen zijn nog niet eenduidig.",
-      "Het antwoord zit nog in de voorbespreking.",
-      "Een wijs man zou nu wachten.",
-      "Een dorstig man blijkbaar niet.",
       "De kratenergie fluctueert.",
-      "De Grote Dorst slaapt nog.",
-      "De Spiritueel Leider onderzoekt de trillingen.",
-      "Het schuim is nog niet opgetrokken.",
-      "Uw ongeduld is genoteerd.",
-      "Het universum waardeert uw enthousiasme.",
-      "De biergoden vragen om iets meer geduld.",
+      "Je dorst is genoteerd.",
       "Het Orakel voelt zich opgejaagd.",
-      "Deze vraag is al bekend bij hogere machten.",
-      "Het kratlot wordt opnieuw geschud.",
-      "De Spiritueel Leider kijkt betekenisvol naar een muur.",
       "De Spiritueel Leider kijkt betekenisvol naar helemaal niets.",
-      "De signalen zijn zwak maar aanwezig.",
-      "Het antwoord gist nog.",
-      "Er wordt nog spiritueel omgeslagen.",
-      "De waarheid bevindt zich op kamertemperatuur.",
-      "Het krat bevindt zich nog buiten de waarneembare werkelijkheid.",
-      "Uw vraag heeft het bewustzijnsniveau van het Orakel bereikt.",
-      "De bierkosmos heeft nog geen besluit genomen.",
-      "De Spiritueel Leider heeft een gevoel. Meer niet.",
-      "Er wordt gewacht op een hoger teken.",
       "Het kratmoment nadert niet sneller door te drukken.",
-      "Het Orakel blijft bij zijn eerdere werk.",
-      "De Spiritueel Leider vraagt zich hetzelfde af.",
-      "De Spiritueel Leider heeft een leeg krat als voorteken gezien.",
-      "Het Orakel weigert zich te laten haasten.",
       "De biergoden hebben je verzoek op 'gelezen' gezet.",
       "De kosmische tap staat nog dicht.",
-      "Het antwoord staat nog niet koud.",
-      "De Spiritueel Leider heeft drie keer geknikt.",
-      "Niemand weet waarom.",
-      "Er wordt nog spiritueel gehydrateerd.",
-      "De dorstmetingen zijn nog niet afgerond.",
-      "Het krat bevindt zich tussen twee dimensies.",
-      "De Grote Dorst rommelt in de verte.",
-      "Een pilsje is geraadpleegd.",
-      "Het pilsje had geen mening.",
-      "De Spiritueel Leider heeft een schuimpatroon ontdekt.",
-      "De interpretatie loopt nog.",
-      "Het universum vraagt zich af waarom je alweer drukt.",
-      "De biergoden houden van geduld.",
-      "Dit is niet hoe profetieën werken.",
-      "Het antwoord is onderweg per krat.",
-      "Er wordt gewacht op gunstige wind.",
-      "De Spiritueel Leider heeft de maan bekeken.",
-      "De maan had geen opmerkingen.",
-      "Een teken werd ontvangen.",
-      "Het bleek een kassabon.",
-      "Het kratpad kronkelt.",
-      "Het Orakel overweegt juridische stappen tegen deze knop.",
-      "De dorst is indrukwekkend.",
-      "Het antwoord minder.",
-      "De Spiritueel Leider heeft een vaag vermoeden.",
-      "Het vermoeden wordt momenteel onderzocht.",
-      "Er hangt een spirituele pilslucht.",
-      "Het kratlot is complexer dan het lijkt.",
-      "Het universum heeft je enthousiasme opgemerkt.",
-      "De biergoden hebben een korte schorsing ingelast.",
-      "Het antwoord rijpt nog.",
-      "Het Orakel heeft lichte hoofdpijn gekregen.",
-      "Er wordt nog gezocht naar hogere waarheid.",
-      "Of een lagere waarheid.",
-      "Het krat heeft nog geen toestemming gegeven.",
-      "De Spiritueel Leider is bezig met veldonderzoek.",
-      "De uitkomst is voorlopig vertrouwelijk.",
-      "Het Orakel heeft je ongeduld genoteerd.",
-      "De Spiritueel Leider weigert haastwerk.",
-      "Een kratbesluit laat zich niet forceren.",
-      "De biergoden kijken afkeurend toe.",
-      "Je vinger is sneller dan je wijsheid.",
-      "Het antwoord is nog in de kelder.",
-      "De waarheid moet eerst koud staan.",
-      "Het kratveld is nog instabiel.",
-      "De Spiritueel Leider ruikt twijfel.",
-      "Het Orakel ademt door de neus.",
-      "De Grote Dorst is nog in overleg met zichzelf.",
-      "Een krat verschijnt niet door geweld.",
-      "De signalen worden opnieuw gewogen.",
-      "De schuimkraag is nog niet overtuigend.",
-      "De Spiritueel Leider heeft een stilte laten vallen.",
-      "Die stilte duurt nog even.",
-      "Je aanvraag is spiritueel vertraagd.",
-      "De bierlijn is bezet.",
-      "De kratfrequentie is nog niet gevonden.",
-      "Er wordt geluisterd naar het zachte gerinkel van lege flesjes.",
-      "Het Orakel heeft je alweer gehoord.",
-      "Je mag ook gewoon wachten.",
-      "De dorst is luid. Het Orakel niet.",
-      "De Spiritueel Leider beweegt niet.",
-      "Dat is meestal een teken.",
-      "De kratwaarheid openbaart zich traag.",
-      "Het antwoord zit vast in de fustruimte.",
-      "Er wordt nog gekeken of dit juridisch een kratmoment is.",
-      "De biergoden zijn principieel tegen spammen.",
-      "Het Orakel heeft geen haastbonus.",
-      "Elke extra druk maakt het spiritueel ingewikkelder.",
-      "De Spiritueel Leider kijkt teleurgesteld naar je scherm.",
-      "Het krat is nog niet emotioneel beschikbaar.",
-      "De voortekenen zijn lauw.",
-      "Het universum heeft je doorgeschakeld naar geduld.",
-      "Er is geen versneld kratloket.",
-      "Je bent nu zelf het probleem.",
-      "Het Orakel voelt druk op de ketel.",
-      "Niet elke dorst is een noodsituatie.",
-      "De Spiritueel Leider hoort alleen stilte.",
-      "En misschien een koelkast.",
-      "De biergoden hebben je verzoek teruggelegd.",
-      "Het antwoord staat op concept.",
-      "Nog één druk en het wordt filosofisch.",
-      "De kratenergie trekt zich terug.",
-      "De Spiritueel Leider heeft een innerlijke pauze genomen.",
-      "Het Orakel wijst naar de klok.",
-      "De klok wijst terug.",
-      "Je probeert een heilig systeem te brute-forcen.",
-      "Het kratpad kent geen sneltoets.",
-      "De waarheid schuimt nog.",
-      "De dorst is sterk, maar de timing zwak.",
-      "Het Orakel heeft besloten moeilijk te doen.",
       "Er wordt nog hoofdelijk nagedacht.",
-      "Het omgeslagen deel is nog niet helder.",
-      "De HO is nog niet volledig geïnterpreteerd.",
-      "De Huisoudste in jezelf moet eerst ontwaken.",
       "Hoofdelijk omgeslagen, niet hoofdelijk opgedrongen.",
-      "De financiële spiritualiteit klopt nog niet.",
       "Er is nog geen collectieve dorst vastgesteld.",
-      "Het kratmoment is procedureel afwezig.",
-      "De Spiritueel Leider heeft de knop verboden terrein verklaard.",
-      "Het Orakel zegt: nee, maar met mist.",
-      "De biergoden fluisteren iets over geduld.",
-      "Een leeg krat rammelde in de verte.",
-      "Dat werd als waarschuwing gezien.",
-      "Het antwoord is nog niet door de koelkastcommissie goedgekeurd.",
-      "Nee wacht, die bestaat niet.",
-      "Precies daarom duurt het langer.",
-      "De Spiritueel Leider telt denkbeeldige flesjes.",
-      "Er mist er één.",
-      "Dat ben jij waarschijnlijk.",
-      "De kosmische dorstcurve is nog vlak.",
-      "Het krat-algoritme weigert onder druk te presteren.",
-      "Je hebt het Orakel nu persoonlijk gemaakt.",
-      "Het Orakel onthoudt dit.",
-      "Spiritueel gezien was dit geen sterke druk.",
-      "Het antwoord is nog bezig met opwarmen. Slecht teken.",
-      "De koelkast heeft geen commentaar.",
-      "De Spiritueel Leider respecteert de koelkast.",
-      "Er wordt gewacht op een trilling in het kratveld.",
-      "Vooralsnog: geen trilling.",
-      "Het bierbewustzijn is offline.",
-      "De Grote Dorst is aan het snoozen.",
-      "De kratprofetie is nog niet geladen.",
-      "Deze druk was administratief overbodig.",
-      "Je zit in de afkoelperiode.",
-      "Letterlijk en spiritueel.",
-      "Het Orakel heeft je dorst doorgestuurd naar niemand.",
-      "De Spiritueel Leider heeft zijn oordeel uitgesteld.",
-      "De flesjes staan nog niet in formatie.",
-      "Er is geen meerderheid in je vinger.",
-      "De kratvraag is existentieel, niet mechanisch.",
-      "Je kunt niet op wilskracht een krat manifesteren.",
-      "De biergoden waarderen bescheidenheid.",
-      "Bescheidenheid is dit niet.",
+      "Het Orakel blijft bij zijn eerdere werk.",
+      "Je probeert een heilig systeem te brute-forcen.",
       "Het Orakel is even klaar met jou."
     ];
 
-    function getCurrentMoment() {
-      const now = new Date();
-      const day = now.getDay();
-      const minutes = now.getHours() * 60 + now.getMinutes();
+    async function loadEventData() {
+      try {
+        const response = await fetch("upcoming-event.json?cache=" + Date.now());
+        if (!response.ok) throw new Error("JSON niet gevonden");
 
-      const isThursday =
-        day === 4 &&
-        minutes >= 19 * 60 + 15 &&
-        minutes <= 23 * 60 + 59;
+        eventData = await response.json();
+        chanceData = calculateChances(eventData);
 
-      const isSunday =
-        day === 0 &&
-        minutes >= 7 * 60 &&
-        minutes <= 20 * 60;
+        renderEvent(eventData, chanceData);
+        setResult("KLAAR.", "Spond is ingelezen. Het kratlot is bekend.");
+        startCountdown();
+      } catch (error) {
+        setResult("NEE.", "Spond-data niet gevonden. Het Orakel werkt offline.");
+      }
+    }
 
-      return { isThursday, isSunday };
+    function calculateChances(data) {
+      const event = data.upcomingEvent || {};
+      const counts = event.counts || {};
+
+      const attending = counts.attending || 0;
+      const declined = counts.declined || 0;
+      const unanswered = counts.unanswered || 0;
+      const type = (event.type || "").toLowerCase();
+
+      const seed = stableRandom(event.id || event.startTimestamp || "ho-krat");
+
+      let typeBonus = 0;
+      if (type.includes("training")) typeBonus = 12;
+      if (type.includes("match") || type.includes("wedstrijd")) typeBonus = 20;
+      if (type.includes("td") || type.includes("party")) typeBonus = 35;
+
+      const ho = clamp(
+        attending * 4.2 + unanswered * 1.5 + typeBonus + seed * 10,
+        3,
+        98
+      );
+
+      const secondCrate = clamp(
+        (attending - 10) * 8 + unanswered * 2 + seed * 15,
+        0,
+        94
+      );
+
+      const escalation = clamp(
+        attending * 4.7 + unanswered * 3.2 - declined * 1.4 + typeBonus + seed * 22,
+        5,
+        99
+      );
+
+      return {
+        ho: Math.round(ho),
+        secondCrate: Math.round(secondCrate),
+        escalation: Math.round(escalation)
+      };
+    }
+
+    function stableRandom(text) {
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = ((hash << 5) - hash) + text.charCodeAt(i);
+        hash |= 0;
+      }
+      return Math.abs(hash % 1000) / 1000;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function renderEvent(data, chances) {
+      const event = data.upcomingEvent || {};
+      const counts = event.counts || {};
+      const start = new Date(event.startTimestamp);
+      const end = new Date(event.endTimestamp);
+
+      document.getElementById("eventCard").style.display = "block";
+      document.getElementById("eventTitle").textContent = `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
+
+      document.getElementById("eventMeta").innerHTML = `
+        ${formatDate(start)} · ${formatTime(start)}-${formatTime(end)}
+        <br>
+        Locatie: ${event.location || "Nog geen locatie"}
+        <br>
+        Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
+      `;
+
+      document.getElementById("attendingCount").textContent = counts.attending ?? "-";
+      document.getElementById("declinedCount").textContent = counts.declined ?? "-";
+      document.getElementById("unansweredCount").textContent = counts.unanswered ?? "-";
+
+      setChance("ho", chances.ho);
+      setChance("second", chances.secondCrate);
+      setChance("escalation", chances.escalation);
+
+      document.getElementById("attendingNames").textContent = listNames(event.attending);
+      document.getElementById("declinedNames").textContent = listNames(event.declined);
+      document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
+    }
+
+    function setChance(id, value) {
+      document.getElementById(id + "Chance").textContent = value + "%";
+      document.getElementById(id + "Bar").style.width = value + "%";
+    }
+
+    function startCountdown() {
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+    }
+
+    function updateCountdown() {
+      if (!eventData || !eventData.upcomingEvent) return;
+
+      const start = new Date(eventData.upcomingEvent.startTimestamp).getTime();
+      const now = Date.now();
+      const diff = start - now;
+
+      if (diff <= 0) {
+        document.getElementById("countdown").textContent = "NU.";
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+      const minutes = Math.floor((diff / (1000 * 60)) % 60);
+      const seconds = Math.floor((diff / 1000) % 60);
+
+      if (days > 0) {
+        document.getElementById("countdown").textContent = `${days}d ${hours}u ${minutes}m`;
+      } else {
+        document.getElementById("countdown").textContent = `${hours}u ${minutes}m ${seconds}s`;
+      }
+    }
+
+    function checkHoKrat() {
+      const now = Date.now();
+
+      if (now - lastPress < COOLDOWN_MS) {
+        lastPress = now;
+        setResult("NEE.", randomFrom(cooldownTexts));
+        return;
+      }
+
+      lastPress = now;
+
+      if (!eventData || !chanceData) {
+        defaultNo();
+        return;
+      }
+
+      const attending = eventData.upcomingEvent?.counts?.attending || 0;
+      const ho = chanceData.ho;
+      const second = chanceData.secondCrate;
+      const escalation = chanceData.escalation;
+
+      if (ho >= 70) {
+        if (second >= 55) {
+          openPopup("secondCrate", `ER KOMEN ${attending} MAN. TWEEDE KRAT OVERWEGEN?`);
+        } else {
+          setResult("JA MAN.", `HO-kans ${ho}%. Escalatie ${escalation}%.`);
+          vibratePositive();
+        }
+      } else if (ho >= 45) {
+        setResult("MISSCHIEN.", `HO-kans ${ho}%. Dit ruikt naar overleg.`);
+      } else {
+        setResult("NEE.", `HO-kans ${ho}%. Te weinig collectieve dorst.`);
+      }
+    }
+
+    function popupYes() {
+      if (popupMode === "secondCrate") {
+        closePopup();
+        setResult("JA MAN.", `2e krat-kans ${chanceData.secondCrate}%. Niet moeilijk doen.`);
+        vibratePositive();
+      }
+    }
+
+    function popupNo() {
+      if (popupMode === "secondCrate") {
+        closePopup();
+        setResult("SLAP.", "Dan wordt het dus een gecontroleerde dorst.");
+      }
+    }
+
+    function defaultNo() {
+      setResult("NEE.", "Nog geen bruikbare Spond-profetie.");
     }
 
     function randomFrom(list) {
@@ -411,77 +560,42 @@
       popupMode = null;
     }
 
-    function defaultNo() {
-      const r = Math.random();
-
-      if (r < 0.975) {
-        setResult("NEE.", "Nog niet, er is geen training of wedstrijd.");
-      } else if (r < 0.995) {
-        setResult("Check met de Spiritueel Leider.", "De signalen zijn onduidelijk.");
-      } else {
-        setResult("Vraag het aan de HO.", "Alleen de HO kan hierover oordelen.");
-      }
-    }
-
-    function checkHoKrat() {
-      const now = Date.now();
-
-      if (now - lastPress < COOLDOWN_MS) {
-        lastPress = now;
-        setResult("NEE.", randomFrom(cooldownTexts));
-        return;
-      }
-
-      lastPress = now;
-
-      const moment = getCurrentMoment();
-
-      if (moment.isThursday || moment.isSunday) {
-        openPopup("firstCrate", "HEBBIE AL EEN KRAT GEHAALD DAN?");
-      } else {
-        defaultNo();
-      }
-    }
-
-    function popupYes() {
-      const moment = getCurrentMoment();
-
-      if (popupMode === "firstCrate") {
-        if (moment.isThursday) {
-          openPopup("secondCrate", "ZIJN ER MEER DAN 12 MAN?");
-        } else {
-          closePopup();
-          setResult("NEE.", "Waarom druk je op deze knop dan?");
-        }
-        return;
-      }
-
-      if (popupMode === "secondCrate") {
-        closePopup();
-        setResult("JA MAN.", "Tijd voor een tweede HO krat.");
-        vibratePositive();
-      }
-    }
-
-    function popupNo() {
-      if (popupMode === "firstCrate") {
-        closePopup();
-        setResult("JA MAN.", "Tijd voor een HO krat.");
-        vibratePositive();
-        return;
-      }
-
-      if (popupMode === "secondCrate") {
-        closePopup();
-        setResult("NEE.", "Zorg volgende keer voor meer mensen bij de training.");
-      }
-    }
-
     function vibratePositive() {
       if (navigator.vibrate) {
         navigator.vibrate([80, 60, 120]);
       }
     }
+
+    function listNames(names) {
+      if (!names || !names.length) return "-";
+      return names.join(", ");
+    }
+
+    function formatDate(date) {
+      return date.toLocaleDateString("nl-NL", {
+        weekday: "short",
+        day: "numeric",
+        month: "short"
+      });
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString("nl-NL", {
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    function formatDateTime(date) {
+      return date.toLocaleString("nl-NL", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+
+    loadEventData();
   </script>
 </body>
 </html>
