@@ -24,34 +24,15 @@ def is_relevant_event(event):
 
 def get_event_type(event):
     name = event.get("heading", "").lower()
-
     if "training" in name:
         return "training"
-
     if "td" in name:
         return "td"
-
     return "wedstrijd"
 
 
-def person_name(person, member_lookup):
-    if isinstance(person, str):
-        return member_lookup.get(person, person)
-
-    if isinstance(person, dict):
-        person_id = person.get("id")
-
-        if person_id and person_id in member_lookup:
-            return member_lookup[person_id]
-
-        first = person.get("firstName", "") or ""
-        last = person.get("lastName", "") or ""
-
-        name = f"{first} {last}".strip()
-
-        return name or person.get("name") or person_id or "Unknown"
-
-    return "Unknown"
+def person_name(person_id, member_lookup):
+    return member_lookup.get(person_id, person_id)
 
 
 def build_member_lookup(group):
@@ -62,10 +43,8 @@ def build_member_lookup(group):
 
     for member in group.get("members", []):
         member_id = member.get("id")
-
         first = member.get("firstName", "") or ""
         last = member.get("lastName", "") or ""
-
         name = f"{first} {last}".strip()
 
         if member_id and name:
@@ -75,29 +54,22 @@ def build_member_lookup(group):
 
 
 def extract_attendance(event, member_lookup):
-    attending = []
-    declined = []
-    unanswered = []
-
     responses = event.get("responses", {})
 
-    for status, people in responses.items():
-        status_lower = status.lower()
+    attending = [
+        person_name(person_id, member_lookup)
+        for person_id in responses.get("acceptedIds", [])
+    ]
 
-        if not isinstance(people, list):
-            continue
+    declined = [
+        person_name(person_id, member_lookup)
+        for person_id in responses.get("declinedIds", [])
+    ]
 
-        for person in people:
-            name = person_name(person, member_lookup)
-
-            if status_lower in ["accepted", "attending", "yes"]:
-                attending.append(name)
-
-            elif status_lower in ["declined", "not_attending", "no"]:
-                declined.append(name)
-
-            else:
-                unanswered.append(name)
+    unanswered = [
+        person_name(person_id, member_lookup)
+        for person_id in responses.get("unansweredIds", [])
+    ]
 
     return {
         "attending": sorted(attending),
@@ -127,7 +99,6 @@ async def main():
         )
 
         member_lookup = build_member_lookup(target_group)
-
         now = datetime.now(timezone.utc)
 
         relevant_events = [
@@ -137,24 +108,9 @@ async def main():
             and parse_dt(event["startTimestamp"]) > now
         ]
 
-        relevant_events.sort(
-            key=lambda e: parse_dt(e["startTimestamp"])
-        )
+        relevant_events.sort(key=lambda e: parse_dt(e["startTimestamp"]))
 
         next_event = relevant_events[0] if relevant_events else None
-
-        print("====================================")
-        print("DEBUG NEXT EVENT RAW")
-        print("====================================")
-
-        print(
-            json.dumps(
-                next_event,
-                ensure_ascii=False,
-                indent=2,
-                default=str
-            )
-        )
 
         output = {
             "updatedAt": now.isoformat(),
@@ -175,31 +131,10 @@ async def main():
                 **extract_attendance(next_event, member_lookup),
             }
 
-        with open(
-            "upcoming-event.json",
-            "w",
-            encoding="utf-8"
-        ) as f:
-            json.dump(
-                output,
-                f,
-                ensure_ascii=False,
-                indent=2,
-                default=str
-            )
+        with open("upcoming-event.json", "w", encoding="utf-8") as f:
+            json.dump(output, f, ensure_ascii=False, indent=2, default=str)
 
-        print("====================================")
-        print("FINAL OUTPUT")
-        print("====================================")
-
-        print(
-            json.dumps(
-                output,
-                ensure_ascii=False,
-                indent=2,
-                default=str
-            )
-        )
+        print(json.dumps(output, ensure_ascii=False, indent=2, default=str))
 
     finally:
         await s.clientsession.close()
