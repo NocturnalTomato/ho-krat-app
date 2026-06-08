@@ -120,39 +120,132 @@ function checkHoKrat() {
 
   lastPress = now;
 
-  if (!eventData || !chanceData) {
+  if (!eventData || !eventData.upcomingEvent) {
     setResult("NEE.", randomFrom(responses.noSpond));
     return;
   }
 
-  const event = eventData.upcomingEvent || {};
-  const attending = event.counts?.attending || 0;
-  const escalation = chanceData.escalation;
+  const decision = getDecision();
 
-  if (attending >= 12) {
-    openPopup("secondCrate", `ER KOMEN ${attending} MAN. TWEEDE KRAT?`);
-  } else if (attending >= 8) {
-    setResult("JA MAN.", `${randomFrom(responses.yes)} Escalatiekans ${escalation}%.`);
-    vibratePositive();
-  } else if (attending >= 5) {
-    setResult("MISSCHIEN.", randomFrom(responses.maybe));
-  } else {
-    setResult("NEE.", `${randomFrom(responses.no)} Maar ${attending} man.`);
+  if (!decision.allowed) {
+    setResult("NEE.", decision.reason);
+    return;
   }
+
+  popupMode = decision.mode;
+  openPopup(decision.mode, "HEB JE AL EEN KRAT GEHAALD DAN?");
+}
+
+function getDecision() {
+  const event = eventData.upcomingEvent || {};
+  const type = (event.type || "").toLowerCase();
+  const attending = event.counts?.attending || 0;
+
+  const eventDate = new Date(event.startTimestamp);
+  const now = new Date();
+
+  const isToday =
+    eventDate.getFullYear() === now.getFullYear() &&
+    eventDate.getMonth() === now.getMonth() &&
+    eventDate.getDate() === now.getDate();
+
+  if (!isToday) {
+    return {
+      allowed: false,
+      reason: "Vandaag is er geen training of wedstrijd."
+    };
+  }
+
+  const isTraining = type.includes("training");
+  const isMatch = type.includes("match") || type.includes("wedstrijd");
+
+  if (!isTraining && !isMatch) {
+    return {
+      allowed: false,
+      reason: "Dit event is geen training of wedstrijd."
+    };
+  }
+
+  const minutes = now.getHours() * 60 + now.getMinutes();
+
+  if (isMatch) {
+    if (minutes < 8 * 60) {
+      return {
+        allowed: false,
+        reason: "Wedstrijd-HO mag pas vanaf 08:00."
+      };
+    }
+
+    return {
+      allowed: true,
+      mode: "firstCrateOnly"
+    };
+  }
+
+  if (isTraining) {
+    if (minutes < 19 * 60 + 15) {
+      return {
+        allowed: false,
+        reason: "Training-HO mag pas vanaf 19:15."
+      };
+    }
+
+    if (attending >= 12) {
+      return {
+        allowed: true,
+        mode: "trainingTwoCratesPossible"
+      };
+    }
+
+    return {
+      allowed: true,
+      mode: "firstCrateOnly"
+    };
+  }
+
+  return {
+    allowed: false,
+    reason: "Het Orakel snapt dit event niet."
+  };
 }
 
 function popupYes() {
-  if (popupMode === "secondCrate") {
+  if (popupMode === "firstCrateOnly") {
     closePopup();
-    setResult("JA MAN.", `${randomFrom(responses.secondCrateYes)} Kans: ${chanceData.secondCrate}%.`);
-    vibratePositive();
+    setResult("NEE.", "Dan is het kratwerk al gedaan.");
+    return;
+  }
+
+  if (popupMode === "trainingTwoCratesPossible") {
+    openPopup("secondCrateCheck", "HEB JE OOK EEN 2E KRAT GEHAALD?");
+    return;
+  }
+
+  if (popupMode === "secondCrateCheck") {
+    closePopup();
+    setResult("NEE.", "Twee kratten is genoeg. Gedraag je.");
   }
 }
 
 function popupNo() {
-  if (popupMode === "secondCrate") {
+  if (popupMode === "firstCrateOnly") {
     closePopup();
-    setResult("SLAP.", randomFrom(responses.secondCrateNo));
+    setResult("JA MAN.", randomFrom(responses.yes));
+    vibratePositive();
+    return;
+  }
+
+  if (popupMode === "trainingTwoCratesPossible") {
+    closePopup();
+    setResult("JA MAN.", randomFrom(responses.yes));
+    vibratePositive();
+    return;
+  }
+
+  if (popupMode === "secondCrateCheck") {
+    closePopup();
+    setResult("JA MAN.", randomFrom(responses.secondCrateYes));
+    vibratePositive();
   }
 }
 
