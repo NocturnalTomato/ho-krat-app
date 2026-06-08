@@ -1,0 +1,57 @@
+{
+  "cooldown": [
+    "Rustig. De Spiritueel Leider denkt na.",
+    "Het Orakel heeft je vraag gehoord.",
+    "De signalen zijn nog niet binnen.",
+    "De biergoden laten op zich wachten.",
+    "De kratenergie fluctueert.",
+    "Je dorst is genoteerd.",
+    "Het Orakel voelt zich opgejaagd.",
+    "De Spiritueel Leider kijkt betekenisvol naar helemaal niets.",
+    "Het kratmoment nadert niet sneller door te drukken.",
+    "De biergoden hebben je verzoek op 'gelezen' gezet.",
+    "De kosmische tap staat nog dicht.",
+    "Er wordt nog hoofdelijk nagedacht.",
+    "Hoofdelijk omgeslagen, niet hoofdelijk opgedrongen.",
+    "Er is nog geen collectieve dorst vastgesteld.",
+    "Het Orakel blijft bij zijn eerdere werk.",
+    "Je probeert een heilig systeem te brute-forcen.",
+    "Het Orakel is even klaar met jou."
+  ],
+  "noSpond": [
+    "Spond is nog niet ingeladen.",
+    "Nog geen bruikbare Spond-profetie.",
+    "Het Orakel werkt offline.",
+    "De Spond-rollen zijn zoek."
+  ],
+  "yes": [
+    "Tijd voor een HO krat.",
+    "De collectieve dorst is vastgesteld.",
+    "Het kratmoment is daar.",
+    "Niet moeilijk doen. Halen."
+  ],
+  "maybe": [
+    "Eerst even peilen.",
+    "Dit ruikt naar overleg.",
+    "De signalen zijn gemengd.",
+    "De groep is nog niet kratwaardig bewezen."
+  ],
+  "no": [
+    "Dat is geen krat, dat is administratie.",
+    "Te weinig collectieve dorst.",
+    "De kratbasis ontbreekt.",
+    "Vandaag nog even niet."
+  ],
+  "secondCrateYes": [
+    "Tijd voor een tweede HO krat.",
+    "Tweede krat is verdedigbaar.",
+    "Niet moeilijk doen. Tweede halen.",
+    "De aantallen liegen niet."
+  ],
+  "secondCrateNo": [
+    "Dan wordt het dus een gecontroleerde dorst.",
+    "Slap, maar administratief begrijpelijk.",
+    "Eén krat. Meer niet.",
+    "De escalatie wordt uitgesteld."
+  ]
+}
