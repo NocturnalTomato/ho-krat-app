@@ -16,19 +16,26 @@ jobs:
         with:
           python-version: "3.11"
 
-- name: Install dependencies
-  run: |
-    pip install --upgrade pip
-    pip install spond
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install spond
+
+      - name: Verify files
+        run: |
+          pwd
+          ls -la
 
       - name: Run Spond check
         env:
           SPOND_USERNAME: ${{ secrets.SPOND_USERNAME }}
           SPOND_PASSWORD: ${{ secrets.SPOND_PASSWORD }}
-        run: python spond_check.py
+        run: |
+          python spond_check.py
 
       - name: Upload output JSON
         uses: actions/upload-artifact@v4
         with:
           name: spond-output
           path: spond_output.json
+          if-no-files-found: ignore
