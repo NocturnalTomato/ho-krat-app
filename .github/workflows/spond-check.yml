@@ -2,6 +2,11 @@ name: Spond Check
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * *"
+
+permissions:
+  contents: write
 
 jobs:
   spond-check:
@@ -21,21 +26,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install spond
 
-      - name: Verify files
-        run: |
-          pwd
-          ls -la
-
       - name: Run Spond check
         env:
           SPOND_USERNAME: ${{ secrets.SPOND_USERNAME }}
           SPOND_PASSWORD: ${{ secrets.SPOND_PASSWORD }}
+        run: python spond_check.py
+
+      - name: Commit upcoming event file
         run: |
-          python spond_check.py
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add upcoming-event.json
+          git commit -m "Update upcoming Spond event" || echo "No changes to commit"
+          git push
 
       - name: Upload output JSON
         uses: actions/upload-artifact@v4
         with:
-          name: spond-output
-          path: spond_output.json
-          if-no-files-found: ignore
+          name: upcoming-event
+          path: upcoming-event.json
