@@ -31,36 +31,71 @@ def get_event_type(event):
     return "wedstrijd"
 
 
-def full_name(person):
-    first = person.get("firstName", "") or ""
-    last = person.get("lastName", "") or ""
-    return f"{first} {last}".strip() or "Unknown"
+def person_name(person, member_lookup):
+    if isinstance(person, str):
+        return member_lookup.get(person, person)
+
+    if isinstance(person, dict):
+        person_id = person.get("id")
+        if person_id and person_id in member_lookup:
+            return member_lookup[person_id]
+
+        first = person.get("firstName", "") or ""
+        last = person.get("lastName", "") or ""
+        name = f"{first} {last}".strip()
+
+        return name or person.get("name") or person_id or "Unknown"
+
+    return "Unknown"
 
 
-def extract_attendance(event):
-    accepted = []
+def build_member_lookup(group):
+    lookup = {}
+
+    if not group:
+        return lookup
+
+    for member in group.get("members", []):
+        member_id = member.get("id")
+        first = member.get("firstName", "") or ""
+        last = member.get("lastName", "") or ""
+        name = f"{first} {last}".strip()
+
+        if member_id and name:
+            lookup[member_id] = name
+
+    return lookup
+
+
+def extract_attendance(event, member_lookup):
+    attending = []
     declined = []
     unanswered = []
 
     responses = event.get("responses", {})
 
     for status, people in responses.items():
-        for person in people:
-            name = full_name(person)
+        status_lower = status.lower()
 
-            if status.lower() in ["accepted", "attending", "yes"]:
-                accepted.append(name)
-            elif status.lower() in ["declined", "not_attending", "no"]:
+        if not isinstance(people, list):
+            continue
+
+        for person in people:
+            name = person_name(person, member_lookup)
+
+            if status_lower in ["accepted", "attending", "yes"]:
+                attending.append(name)
+            elif status_lower in ["declined", "not_attending", "no"]:
                 declined.append(name)
             else:
                 unanswered.append(name)
 
     return {
-        "attending": sorted(accepted),
+        "attending": sorted(attending),
         "declined": sorted(declined),
         "unanswered": sorted(unanswered),
         "counts": {
-            "attending": len(accepted),
+            "attending": len(attending),
             "declined": len(declined),
             "unanswered": len(unanswered),
         },
@@ -81,6 +116,8 @@ async def main():
             (g for g in groups if g.get("name") == TARGET_GROUP_NAME),
             None,
         )
+
+        member_lookup = build_member_lookup(target_group)
 
         now = datetime.now(timezone.utc)
 
@@ -111,7 +148,7 @@ async def main():
                 "endTimestamp": next_event.get("endTimestamp"),
                 "location": next_event.get("location"),
                 "type": get_event_type(next_event),
-                **extract_attendance(next_event),
+                **extract_attendance(next_event, member_lookup),
             }
 
         with open("upcoming-event.json", "w", encoding="utf-8") as f:
