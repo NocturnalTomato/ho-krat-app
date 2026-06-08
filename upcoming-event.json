@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-08T15:23:43.794678+00:00",
+  "updatedAt": "2026-06-08T15:31:19.552700+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
   "memberCount": 20,
@@ -10,19 +10,15 @@
     "endTimestamp": "2026-06-11T18:00:00Z",
     "location": null,
     "type": "training",
-    "attending": [],
-    "declined": [],
-    "unanswered": [
+    "attending": [
       "Bart Gijsberts",
       "Bas Quirijns",
       "Bob Leuterrr",
-      "Chris Willemsen",
       "Faas Van t Hek",
       "Floris Hage",
       "Jasper Zaar",
       "Jeroen Mossinkoff",
       "Joost Kirkenier",
-      "Joost Sleddering",
       "Luc de Goeij",
       "Maarten Bambacht",
       "Marc Segers",
@@ -30,14 +26,20 @@
       "Rikkert Verberne",
       "Thijs Oudkerk",
       "Thomas Taks",
-      "Victor Peet",
-      "Willem van Rootselaar",
+      "Victor Peet"
+    ],
+    "declined": [
+      "Chris Willemsen",
+      "Joost Sleddering",
+      "Willem van Rootselaar"
+    ],
+    "unanswered": [
       "Wilma Willemsen"
     ],
     "counts": {
-      "attending": 0,
-      "declined": 0,
-      "unanswered": 20
+      "attending": 16,
+      "declined": 3,
+      "unanswered": 1
     }
   }
 }
