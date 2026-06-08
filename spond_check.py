@@ -132,6 +132,9 @@ async def main():
 
         next_event = relevant_events[0] if relevant_events else None
 
+print("DEBUG NEXT EVENT RAW:")
+print(json.dumps(next_event, ensure_ascii=False, indent=2, default=str))
+
         output = {
             "updatedAt": now.isoformat(),
             "team": TARGET_GROUP_NAME,
