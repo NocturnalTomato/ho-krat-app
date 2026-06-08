@@ -61,11 +61,17 @@ function calculateChances(data) {
   if (type.includes("match") || type.includes("wedstrijd")) typeBonus = 22;
   if (type.includes("td") || type.includes("party") || type.includes("feest")) typeBonus = 35;
 
-  const secondCrate = clamp(
-    (attending - 10) * 8 + unanswered * 2 + seed * 16 + typeBonus * 0.25,
-    0,
-    96
-  );
+  let secondCrate;
+
+  if (attending <= 1) {
+    secondCrate = 0;
+  } else if (attending <= 12) {
+    secondCrate = 95 * Math.pow((attending - 1) / 11, 2);
+  } else {
+    secondCrate = 95 + 4 * (1 - Math.exp(-(attending - 12) / 6));
+  }
+
+  secondCrate = Math.min(99, Math.round(secondCrate));
 
   const escalation = clamp(
     attending * 4.7 + unanswered * 3.2 - declined * 1.4 + typeBonus + seed * 24,
@@ -74,7 +80,7 @@ function calculateChances(data) {
   );
 
   return {
-    secondCrate: Math.round(secondCrate),
+    secondCrate,
     escalation: Math.round(escalation)
   };
 }
@@ -132,7 +138,6 @@ function checkHoKrat() {
     return;
   }
 
-  popupMode = decision.mode;
   openPopup(decision.mode, "HEB JE AL EEN KRAT GEHAALD DAN?");
 }
 
@@ -256,7 +261,11 @@ function setChance(id, value) {
 
 function startCountdown() {
   updateCountdown();
-  if (countdownTimer) clearInterval(countdownTimer);
+
+  if (countdownTimer) {
+    clearInterval(countdownTimer);
+  }
+
   countdownTimer = setInterval(updateCountdown, 1000);
 }
 
@@ -277,15 +286,19 @@ function updateCountdown() {
   const seconds = Math.floor((diff / 1000) % 60);
 
   document.getElementById("countdown").textContent =
-    days > 0 ? `${days}d ${hours}u ${minutes}m` : `${hours}u ${minutes}m ${seconds}s`;
+    days > 0
+      ? `${days}d ${hours}u ${minutes}m`
+      : `${hours}u ${minutes}m ${seconds}s`;
 }
 
 function stableRandom(text) {
   let hash = 0;
+
   for (let i = 0; i < text.length; i++) {
     hash = ((hash << 5) - hash) + text.charCodeAt(i);
     hash |= 0;
   }
+
   return Math.abs(hash % 1000) / 1000;
 }
 
