@@ -1,0 +1,32 @@
+name: Spond Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  spond-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Spond check
+        env:
+          SPOND_USERNAME: ${{ secrets.SPOND_USERNAME }}
+          SPOND_PASSWORD: ${{ secrets.SPOND_PASSWORD }}
+        run: python spond_check.py
+
+      - name: Upload output JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: spond-output
+          path: spond_output.json
