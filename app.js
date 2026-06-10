@@ -1,3 +1,4 @@
+console.log("APP.JS VERSION: SPLITSER PEOPLE FIX 1");
 let popupMode = null;
 let lastPress = 0;
 let eventData = null;
@@ -266,9 +267,13 @@ function renderSplitserCard(data) {
 
   card.style.display = "block";
 
-  const members = normalizeSplitserMembers(data)
-    .filter(member => Number.isFinite(member.amountCents));
+const rawMembers = Array.isArray(data?.people)
+  ? data.people
+  : normalizeSplitserMembers(data);
 
+const members = rawMembers
+  .map(normalizeSplitserMember)
+  .filter(member => Number.isFinite(member.amountCents));
   console.log("SPLITSER NORMALIZED MEMBERS", members);
 
   if (!members.length) {
