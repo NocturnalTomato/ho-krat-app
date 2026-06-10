@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-09T08:28:55.160613+00:00",
+  "updatedAt": "2026-06-10T08:45:20.414448+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
   "memberCount": 20,
@@ -17,7 +17,6 @@
       "Faas Van t Hek",
       "Floris Hage",
       "Jasper Zaar",
-      "Jeroen Mossinkoff",
       "Joost Kirkenier",
       "Luc de Goeij",
       "Maarten Bambacht",
@@ -30,6 +29,7 @@
     ],
     "declined": [
       "Chris Willemsen",
+      "Jeroen Mossinkoff",
       "Joost Sleddering",
       "Willem van Rootselaar"
     ],
@@ -37,8 +37,8 @@
       "Wilma Willemsen"
     ],
     "counts": {
-      "attending": 16,
-      "declined": 3,
+      "attending": 15,
+      "declined": 4,
       "unanswered": 1
     }
   }
