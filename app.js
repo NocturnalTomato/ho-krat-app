@@ -227,8 +227,6 @@ async function checkHoKrat() {
 
   setResult("...", "Het Orakel raadpleegt Spond en Splitser.");
 
-  triggerDataSync();
-
   if (!eventData || !eventData.upcomingEvent) {
     setResult("NEE.", randomFrom(responses.noSpond));
     return;
