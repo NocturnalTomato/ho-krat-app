@@ -19,7 +19,7 @@
     <div class="sub" id="sub"></div>
     <div class="spond-status" id="spondStatus">Spond-data laden...</div>
     <div class="spond-status" id="splitserStatus">Splitser-data laden...</div>
-    
+
     <div class="event-card" id="eventCard" style="display:none;">
       <div class="event-title" id="eventTitle"></div>
       <div class="event-meta" id="eventMeta"></div>
@@ -54,7 +54,43 @@
       </details>
     </div>
 
-    <div class="version">HO KRAT ORACLE v2.2</div>
+    <div class="splitser-card" id="splitserCard" style="display:none;">
+      <div class="splitser-header">
+        <div>
+          <div class="splitser-kicker">KRATBALANS DER WAARHEID</div>
+          <div class="splitser-title">Helden & Klaplopers</div>
+        </div>
+        <button class="mini-button" onclick="triggerDataSync()">Sync</button>
+      </div>
+
+      <div class="splitser-hero-box">
+        <div class="splitser-label">Grootste Kratheilige</div>
+        <div class="splitser-hero" id="splitserBigHero">-</div>
+        <div class="splitser-amount" id="splitserBigHeroAmount">-</div>
+      </div>
+
+      <div class="splitser-columns">
+        <div>
+          <h4>Helden</h4>
+          <ol class="splitser-list heroes-list" id="splitserHeroes"></ol>
+        </div>
+        <div>
+          <h4>Wie moet het krat straks halen?</h4>
+          <ol class="splitser-list klaplopers-list" id="splitserKlaplopers"></ol>
+        </div>
+      </div>
+
+      <button class="splitser-toggle" id="splitserToggle" onclick="toggleSplitserFull()">
+        Toon volledige schuldenlijst
+      </button>
+
+      <div class="splitser-full" id="splitserFullWrap" style="display:none;">
+        <h4>Volledige financiële biecht</h4>
+        <ol class="splitser-list full-list" id="splitserFullList"></ol>
+      </div>
+    </div>
+
+    <div class="version">HO KRAT ORACLE v2.3</div>
   </div>
 
   <div class="popup" id="popup">
