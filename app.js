@@ -324,6 +324,10 @@ function normalizeSplitserMembers(data) {
     return data.map(normalizeSplitserMember);
   }
 
+  if (Array.isArray(data.people)) {
+    return data.people.map(normalizeSplitserMember);
+  }
+
   if (Array.isArray(data.members)) {
     return data.members.map(normalizeSplitserMember);
   }
@@ -344,12 +348,16 @@ function normalizeSplitserMembers(data) {
     return data.balance.member_totals.map(normalizeWbwMemberTotal);
   }
 
-  if (Array.isArray(data.data?.balance?.member_totals)) {
-    return data.data.balance.member_totals.map(normalizeWbwMemberTotal);
+  if (Array.isArray(data.data?.people)) {
+    return data.data.people.map(normalizeSplitserMember);
   }
 
   if (Array.isArray(data.data?.members)) {
     return data.data.members.map(normalizeSplitserMember);
+  }
+
+  if (Array.isArray(data.data?.balance?.member_totals)) {
+    return data.data.balance.member_totals.map(normalizeWbwMemberTotal);
   }
 
   return [];
