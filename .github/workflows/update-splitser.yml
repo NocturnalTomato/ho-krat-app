@@ -1,0 +1,34 @@
+name: Update Splitser overview
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  update-splitser:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update Splitser data
+        run: node scripts/update-splitser.js
+        env:
+          SPLITSER_EMAIL: ${{ secrets.SPLITSER_EMAIL }}
+          SPLITSER_PASSWORD: ${{ secrets.SPLITSER_PASSWORD }}
+
+      - name: Commit updated overview
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update Splitser overview
+          file_pattern: splitser-overzicht.json
