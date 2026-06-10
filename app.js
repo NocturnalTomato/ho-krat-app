@@ -1,4 +1,3 @@
-console.log("APP.JS VERSION: SPLITSER PEOPLE FIX 1");
 let popupMode = null;
 let lastPress = 0;
 let eventData = null;
@@ -15,8 +14,7 @@ const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 
 async function init() {
-  ensureSplitserCardExists();
-  showSplitserDebug("Splitser-balans laden...");
+  showSplitserLoading();
   await loadResponses();
 
   loadEventData();
@@ -27,84 +25,32 @@ async function init() {
    SPLITSER
 ========================= */
 
-function ensureSplitserCardExists() {
-  if (document.getElementById("splitserCard")) return;
-
-  const eventCard = document.getElementById("eventCard");
-  const version = document.querySelector(".version");
-  const card = document.querySelector(".card");
-
-  const splitserCard = document.createElement("div");
-  splitserCard.className = "splitser-card";
-  splitserCard.id = "splitserCard";
-  splitserCard.style.display = "block";
-
-  splitserCard.innerHTML = `
-    <div class="splitser-header">
-      <div>
-        <div class="splitser-kicker">KRATBALANS DER WAARHEID</div>
-        <div class="splitser-title">Helden & Klaplopers</div>
-      </div>
-      <button class="mini-button" type="button" onclick="triggerDataSync()">Sync</button>
-    </div>
-
-    <div class="splitser-hero-box">
-      <div class="splitser-label">Grootste Kratheilige</div>
-      <div class="splitser-hero" id="splitserBigHero">-</div>
-      <div class="splitser-amount" id="splitserBigHeroAmount">-</div>
-    </div>
-
-    <div class="splitser-columns">
-      <div>
-        <h4>Helden</h4>
-        <ol class="splitser-list heroes-list" id="splitserHeroes"></ol>
-      </div>
-      <div>
-        <h4>Wie moet het krat straks halen?</h4>
-        <ol class="splitser-list klaplopers-list" id="splitserKlaplopers"></ol>
-      </div>
-    </div>
-
-    <button class="splitser-toggle" id="splitserToggle" type="button" onclick="toggleSplitserFull()">
-      Toon volledige schuldenlijst
-    </button>
-
-    <div class="splitser-full" id="splitserFullWrap" style="display:none;">
-      <h4>Volledige financiële biecht</h4>
-      <ol class="splitser-list full-list" id="splitserFullList"></ol>
-    </div>
-  `;
-
-  if (eventCard) {
-    eventCard.insertAdjacentElement("afterend", splitserCard);
-  } else if (version && card) {
-    card.insertBefore(splitserCard, version);
-  } else if (card) {
-    card.appendChild(splitserCard);
-  }
-}
-
-function showSplitserDebug(message) {
-  ensureSplitserCardExists();
-
+function showSplitserLoading() {
   const card = document.getElementById("splitserCard");
-  const hero = document.getElementById("splitserBigHero");
-  const heroAmount = document.getElementById("splitserBigHeroAmount");
-  const heroes = document.getElementById("splitserHeroes");
-  const klaplopers = document.getElementById("splitserKlaplopers");
-  const full = document.getElementById("splitserFullList");
+  const heroesEl = document.getElementById("splitserHeroes");
+  const klaplopersEl = document.getElementById("splitserKlaplopers");
+  const fullListEl = document.getElementById("splitserFullList");
 
   if (card) card.style.display = "block";
-  if (hero) hero.textContent = message;
-  if (heroAmount) heroAmount.textContent = "Debugmodus: de box is zichtbaar, nu wachten op data.";
-  if (heroes) heroes.innerHTML = "";
-  if (klaplopers) klaplopers.innerHTML = "";
-  if (full) full.innerHTML = "";
+
+  if (heroesEl) {
+    heroesEl.innerHTML = `
+      <li>
+        <div class="compact-person-row">
+          <span class="rank-name">Laden...</span>
+          <span class="rank-amount">Splitser wordt ondervraagd</span>
+        </div>
+      </li>
+    `;
+  }
+
+  if (klaplopersEl) klaplopersEl.innerHTML = "";
+  if (fullListEl) fullListEl.innerHTML = "";
 }
 
 async function triggerDataSync() {
   try {
-    showSplitserDebug("Splitser-sync gestart...");
+    showSplitserLoading();
 
     const status = document.getElementById("splitserStatus");
     if (status) {
@@ -134,7 +80,7 @@ async function triggerDataSync() {
       status.style.color = "#ff5c5c";
     }
 
-    showSplitserDebug("Splitser-sync mislukt.");
+    showSplitserError("Sync mislukt");
   }
 }
 
@@ -149,12 +95,9 @@ async function pollSplitserUpdate(oldUpdatedAt) {
         cache: "no-store"
       });
 
-      console.log("SPLITSER POLL HTTP", response.status);
-
       if (!response.ok) continue;
 
       const freshData = await response.json();
-      console.log("SPLITSER POLL DATA", freshData);
 
       if (freshData.updatedAt && freshData.updatedAt !== oldUpdatedAt) {
         splitserData = freshData;
@@ -170,18 +113,7 @@ async function pollSplitserUpdate(oldUpdatedAt) {
 }
 
 async function loadSplitserData() {
-  showSplitserDebug("Splitser-balans laden...");
-
-  const timeout = setTimeout(() => {
-    if (!splitserData) {
-      showSplitserDebug("Splitser is traag.");
-      const status = document.getElementById("splitserStatus");
-      if (status) {
-        status.textContent = "Splitser is traag of reageert niet.";
-        status.style.color = "#ffcc00";
-      }
-    }
-  }, 12000);
+  showSplitserLoading();
 
   try {
     const response = await fetch(SPLITSER_URL, {
@@ -197,10 +129,8 @@ async function loadSplitserData() {
     splitserData = await response.json();
     console.log("SPLITSER DATA", splitserData);
 
-    clearTimeout(timeout);
     renderSplitserStatus(splitserData);
   } catch (err) {
-    clearTimeout(timeout);
     console.error("SPLITSER LOAD ERROR:", err);
 
     const status = document.getElementById("splitserStatus");
@@ -209,8 +139,31 @@ async function loadSplitserData() {
       status.style.color = "#ff5c5c";
     }
 
-    showSplitserDebug("Splitser niet bereikbaar.");
+    showSplitserError("Splitser niet bereikbaar");
   }
+}
+
+function showSplitserError(message) {
+  const card = document.getElementById("splitserCard");
+  const heroesEl = document.getElementById("splitserHeroes");
+  const klaplopersEl = document.getElementById("splitserKlaplopers");
+  const fullListEl = document.getElementById("splitserFullList");
+
+  if (card) card.style.display = "block";
+
+  if (heroesEl) {
+    heroesEl.innerHTML = `
+      <li>
+        <div class="compact-person-row">
+          <span class="rank-name">${message}</span>
+          <span class="rank-amount amount-minus">Check de Worker of console</span>
+        </div>
+      </li>
+    `;
+  }
+
+  if (klaplopersEl) klaplopersEl.innerHTML = "";
+  if (fullListEl) fullListEl.innerHTML = "";
 }
 
 function renderSplitserStatus(data) {
@@ -229,10 +182,10 @@ function renderSplitserStatus(data) {
   const ageMs = Date.now() - new Date(data.updatedAt).getTime();
   const ageMin = Math.floor(ageMs / 60000);
 
-  let label = `Laatste Splitser-sync: ${ageMin} min geleden`;
+  let label = `Splitser-sync: ${ageMin} min geleden`;
 
   if (ageMin < 1) {
-    label = "Laatste Splitser-sync: zojuist";
+    label = "Splitser-sync: zojuist";
   }
 
   if (el) {
@@ -251,173 +204,131 @@ function renderSplitserStatus(data) {
 }
 
 function renderSplitserCard(data) {
-  ensureSplitserCardExists();
-
   const card = document.getElementById("splitserCard");
-  const heroEl = document.getElementById("splitserBigHero");
-  const heroAmountEl = document.getElementById("splitserBigHeroAmount");
   const heroesEl = document.getElementById("splitserHeroes");
   const klaplopersEl = document.getElementById("splitserKlaplopers");
   const fullListEl = document.getElementById("splitserFullList");
 
-  if (!card || !heroEl || !heroAmountEl || !heroesEl || !klaplopersEl || !fullListEl) {
+  if (!card || !heroesEl || !klaplopersEl || !fullListEl) {
     console.error("Splitser HTML-elementen missen.");
     return;
   }
 
   card.style.display = "block";
 
-const rawMembers = Array.isArray(data?.people)
-  ? data.people
-  : normalizeSplitserMembers(data);
-
-const members = rawMembers
-  .map(normalizeSplitserMember)
-  .filter(member => Number.isFinite(member.amountCents));
-  console.log("SPLITSER NORMALIZED MEMBERS", members);
+  const members = Array.isArray(data?.people)
+    ? data.people.filter(member => Number.isFinite(member.amountCents))
+    : [];
 
   if (!members.length) {
-    heroEl.textContent = "Geen leden gevonden.";
-    heroAmountEl.textContent = "De Worker reageert wel, maar de app herkent de ledenlijst niet. Check console: SPLITSER DATA.";
-    heroesEl.innerHTML = "";
-    klaplopersEl.innerHTML = "";
-    fullListEl.innerHTML = "";
+    showSplitserError("Geen leden gevonden");
     return;
   }
 
   const sortedHigh = [...members].sort((a, b) => b.amountCents - a.amountCents);
   const sortedLow = [...members].sort((a, b) => a.amountCents - b.amountCents);
 
-  const biggestHero = sortedHigh[0];
   const top3High = sortedHigh.slice(0, 3);
-  const top5Low = sortedLow.slice(0, 5);
   const top3Low = sortedLow.slice(0, 3);
 
-  heroEl.textContent = getSplitserName(biggestHero);
-  heroAmountEl.textContent = `${formatSplitserAmount(biggestHero)} in de plus. Deze man draagt het krat op zijn rug.`;
-
   heroesEl.innerHTML = "";
-  top3High.forEach((member, index) => {
-    heroesEl.appendChild(createSplitserRankItem(member, getHeroTitle(index, member)));
+  top3High.forEach(member => {
+    heroesEl.appendChild(createCompactPersonItem(member));
   });
 
   klaplopersEl.innerHTML = "";
-  top5Low.forEach((member, index) => {
-    klaplopersEl.appendChild(createSplitserRankItem(member, getKlaploperTitle(index, member)));
+  top3Low.forEach(member => {
+    klaplopersEl.appendChild(createCompactPersonItem(member));
   });
 
   fullListEl.innerHTML = "";
 
-  const top3HighKeys = new Set(top3High.map(member => member.id || getSplitserName(member)));
-  const top3LowKeys = new Set(top3Low.map(member => member.id || getSplitserName(member)));
+  const maxPlus = Math.max(...members.map(member => member.amountCents), 1);
+  const maxMin = Math.abs(Math.min(...members.map(member => member.amountCents), -1));
 
   sortedHigh.forEach(member => {
-    const li = createSplitserRankItem(member, getSplitserName(member));
-    const key = member.id || getSplitserName(member);
-
-    if (top3HighKeys.has(key)) li.classList.add("top-plus");
-    if (top3LowKeys.has(key)) li.classList.add("top-minus");
-
-    fullListEl.appendChild(li);
+    fullListEl.appendChild(createFullBalanceItem(member, maxPlus, maxMin));
   });
 }
 
-function normalizeSplitserMembers(data) {
-  if (!data) return [];
-
-  if (Array.isArray(data)) {
-    return data.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.people)) {
-    return data.people.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.members)) {
-    return data.members.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.data)) {
-    return data.data.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.balance)) {
-    return data.balance.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.member_totals)) {
-    return data.member_totals.map(normalizeWbwMemberTotal);
-  }
-
-  if (Array.isArray(data.balance?.member_totals)) {
-    return data.balance.member_totals.map(normalizeWbwMemberTotal);
-  }
-
-  if (Array.isArray(data.data?.people)) {
-    return data.data.people.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.data?.members)) {
-    return data.data.members.map(normalizeSplitserMember);
-  }
-
-  if (Array.isArray(data.data?.balance?.member_totals)) {
-    return data.data.balance.member_totals.map(normalizeWbwMemberTotal);
-  }
-
-  return [];
-}
-
-function normalizeWbwMemberTotal(item) {
-  const total = item.member_total || item;
-  const member = total.member || {};
-  const money = total.balance_total || {};
-
-  return normalizeSplitserMember({
-    id: member.id,
-    name: member.nickname,
-    fullName: member.full_name,
-    amountCents: money.fractional,
-    amount: money.formatted,
-    isCurrent: member.is_current
-  });
-}
-
-function normalizeSplitserMember(member) {
-  const amountCents =
-    toValidNumber(member.amountCents) ??
-    toValidNumber(member.balanceCents) ??
-    toValidNumber(member.cents) ??
-    toValidNumber(member.fractional) ??
-    parseAmountToCents(member.amount) ??
-    parseAmountToCents(member.balance) ??
-    0;
-
-  return {
-    id: member.id || member.memberId || member.name || member.fullName || member.full_name,
-    name: member.name || member.nickname || member.fullName || member.full_name,
-    fullName: member.fullName || member.full_name || member.name || member.nickname,
-    amountCents,
-    amount: member.amount || member.balance || null,
-    isCurrent: member.isCurrent ?? member.is_current ?? true
-  };
-}
-
-function createSplitserRankItem(member, title) {
+function createCompactPersonItem(member) {
   const li = document.createElement("li");
+
+  const row = document.createElement("div");
+  row.className = "compact-person-row";
 
   const name = document.createElement("span");
   name.className = "rank-name";
-  name.textContent = title;
+  name.textContent = member.name;
 
   const amount = document.createElement("span");
-  amount.className = "rank-amount";
-  amount.textContent = formatSplitserAmount(member);
+  amount.className = member.amountCents >= 0
+    ? "rank-amount amount-plus"
+    : "rank-amount amount-minus";
+  amount.textContent = formatDutchAmount(member.amountCents);
 
-  li.appendChild(name);
-  li.appendChild(amount);
+  row.appendChild(name);
+  row.appendChild(amount);
+  li.appendChild(row);
 
   return li;
+}
+
+function createFullBalanceItem(member, maxPlus, maxMin) {
+  const row = document.createElement("div");
+  row.className = "balance-row";
+
+  const top = document.createElement("div");
+  top.className = "balance-row-top";
+
+  const name = document.createElement("span");
+  name.className = "balance-name";
+  name.textContent = member.name;
+
+  const amount = document.createElement("span");
+  amount.className = member.amountCents >= 0
+    ? "balance-amount amount-plus"
+    : "balance-amount amount-minus";
+  amount.textContent = formatDutchAmount(member.amountCents);
+
+  top.appendChild(name);
+  top.appendChild(amount);
+
+  const bar = document.createElement("div");
+  bar.className = "balance-bar";
+
+  const plusHalf = document.createElement("div");
+  plusHalf.className = "balance-half balance-plus-half";
+
+  const minHalf = document.createElement("div");
+  minHalf.className = "balance-half balance-min-half";
+
+  const plusFill = document.createElement("div");
+  plusFill.className = "balance-fill balance-plus-fill";
+
+  const minFill = document.createElement("div");
+  minFill.className = "balance-fill balance-min-fill";
+
+  if (member.amountCents > 0) {
+    const width = Math.min(100, Math.round((member.amountCents / maxPlus) * 100));
+    plusFill.style.width = `${width}%`;
+  }
+
+  if (member.amountCents < 0) {
+    const width = Math.min(100, Math.round((Math.abs(member.amountCents) / maxMin) * 100));
+    minFill.style.width = `${width}%`;
+  }
+
+  plusHalf.appendChild(plusFill);
+  minHalf.appendChild(minFill);
+
+  bar.appendChild(plusHalf);
+  bar.appendChild(minHalf);
+
+  row.appendChild(top);
+  row.appendChild(bar);
+
+  return row;
 }
 
 function toggleSplitserFull() {
@@ -429,74 +340,15 @@ function toggleSplitserFull() {
   splitserFullOpen = !splitserFullOpen;
   wrap.style.display = splitserFullOpen ? "block" : "none";
   button.textContent = splitserFullOpen
-    ? "Verberg de financiële ellende"
-    : "Toon volledige schuldenlijst";
+    ? "Verberg volledige balans"
+    : "Toon volledige balans";
 }
 
-function getHeroTitle(index, member) {
-  const name = getSplitserName(member);
-
-  const titles = [
-    `Kratheilige ${name}`,
-    `Beschermheer ${name}`,
-    `Gulle Gele ${name}`
-  ];
-
-  return titles[index] || name;
-}
-
-function getKlaploperTitle(index, member) {
-  const name = getSplitserName(member);
-
-  const titles = [
-    `Kratplichtige ${name}`,
-    `Hoofdelijk Omgeslagen ${name}`,
-    `Financieel Verdwaalde ${name}`,
-    `Mag fietsen ${name}`,
-    `Kratontwijker ${name}`
-  ];
-
-  return titles[index] || name;
-}
-
-function getSplitserName(member) {
-  return member.name || member.fullName || "Onbekende dorstige";
-}
-
-function formatSplitserAmount(member) {
-  if (member.amount) return member.amount;
-
-  return (member.amountCents / 100).toLocaleString("nl-NL", {
+function formatDutchAmount(amountCents) {
+  return (amountCents / 100).toLocaleString("nl-NL", {
     style: "currency",
     currency: "EUR"
   });
-}
-
-function toValidNumber(value) {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function parseAmountToCents(value) {
-  if (typeof value === "number") {
-    return Math.round(value * 100);
-  }
-
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const cleaned = value
-    .replace(/[^0-9,.-]/g, "")
-    .replace(",", ".");
-
-  const number = Number(cleaned);
-
-  if (!Number.isFinite(number)) {
-    return null;
-  }
-
-  return Math.round(number * 100);
 }
 
 /* =========================
@@ -530,10 +382,20 @@ async function loadEventData() {
     chanceData = calculateChances(eventData);
 
     renderEvent(eventData, chanceData);
-    document.getElementById("spondStatus").textContent = "Spond-data ingeladen.";
+
+    const spondStatus = document.getElementById("spondStatus");
+    if (spondStatus) {
+      spondStatus.textContent = "Spond-data ingeladen.";
+      spondStatus.style.color = "#46d369";
+    }
+
     startCountdown();
   } catch {
-    document.getElementById("spondStatus").textContent = "Spond-data niet gevonden.";
+    const spondStatus = document.getElementById("spondStatus");
+    if (spondStatus) {
+      spondStatus.textContent = "Spond-data niet gevonden.";
+      spondStatus.style.color = "#ff5c5c";
+    }
   }
 }
 
