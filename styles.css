@@ -503,3 +503,102 @@ summary {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================
+   KRATFLAP GAME SHEET
+========================= */
+
+.kratflap-teaser {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.28);
+  text-align: center;
+}
+
+.kratflap-teaser-text {
+  font-size: 12px;
+  color: #a1a1a6;
+  font-weight: 850;
+  margin-bottom: 8px;
+}
+
+.kratflap-button {
+  width: 100%;
+  height: auto;
+  min-height: 48px;
+  border-radius: 16px;
+  padding: 12px 14px;
+  font-size: 16px;
+  box-shadow: none;
+}
+
+.kratflap-sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+}
+
+.kratflap-sheet.show {
+  display: block;
+}
+
+.kratflap-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+}
+
+.kratflap-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: min(92vh, 820px);
+  background: #050505;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 22px 22px 0 0;
+  overflow: hidden;
+  box-shadow: 0 -20px 70px rgba(0, 0, 0, 0.65);
+}
+
+.kratflap-panel-header {
+  height: 58px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #0b0b0b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.kratflap-kicker {
+  font-size: 10px;
+  color: #a1a1a6;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+}
+
+.kratflap-title {
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.kratflap-close {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  font-size: 28px;
+  line-height: 1;
+  padding: 0;
+  box-shadow: none;
+}
+
+.kratflap-frame {
+  width: 100%;
+  height: calc(100% - 58px);
+  border: 0;
+  background: #050505;
+}
