@@ -4,6 +4,7 @@ let eventData = null;
 let chanceData = null;
 let responses = {};
 let countdownTimer = null;
+let splitserData = null;
 
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
@@ -13,6 +14,7 @@ const POLL_INTERVAL_MS = 3000;
 async function init() {
   await loadResponses();
   await loadEventData();
+  await loadSplitserData();
 }
 
 async function triggerDataSync() {
@@ -105,6 +107,43 @@ async function loadEventData() {
     startCountdown();
   } catch {
     document.getElementById("spondStatus").textContent = "Spond-data niet gevonden.";
+  }
+}
+
+async function loadSplitserData() {
+  try {
+    const response = await fetch("splitser-overzicht.json?cache=" + Date.now());
+    if (!response.ok) throw new Error("splitser-overzicht.json niet gevonden");
+
+    splitserData = await response.json();
+    renderSplitserStatus(splitserData);
+  } catch {
+    document.getElementById("splitserStatus").textContent =
+      "Splitser-data niet gevonden.";
+  }
+}
+
+function renderSplitserStatus(data) {
+  const el = document.getElementById("splitserStatus");
+  if (!el || !data?.updatedAt) return;
+
+  const ageMs = Date.now() - new Date(data.updatedAt).getTime();
+  const ageMin = Math.floor(ageMs / 60000);
+
+  let label = `Laatste Splitser-sync: ${ageMin} min geleden`;
+
+  if (ageMin < 1) {
+    label = "Laatste Splitser-sync: zojuist";
+  }
+
+  el.textContent = label;
+
+  if (ageMin <= 15) {
+    el.style.color = "#46d369";
+  } else if (ageMin <= 60) {
+    el.style.color = "#ffcc00";
+  } else {
+    el.style.color = "#ff5c5c";
   }
 }
 
