@@ -53,7 +53,10 @@ async function pollSplitserUpdate(oldUpdatedAt) {
     await sleep(POLL_INTERVAL_MS);
 
     try {
-      const response = await fetch("splitser-overzicht.json?cache=" + Date.now());
+      const response = await fetch(
+  "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789",
+  { cache: "no-store" }
+);
       if (!response.ok) continue;
 
       const freshData = await response.json();
