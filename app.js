@@ -19,10 +19,11 @@ async function init() {
 
 async function triggerDataSync() {
   try {
-    document.getElementById("spondStatus").textContent =
-      "Orakel raadpleegt Spond en Splitser...";
+    document.getElementById("splitserStatus").textContent =
+      "Splitser-sync gestart...";
+    document.getElementById("splitserStatus").style.color = "#ffcc00";
 
-    const oldUpdatedAt = eventData?.updatedAt;
+    const oldSplitserUpdatedAt = splitserData?.updatedAt;
 
     const response = await fetch(SYNC_URL, { cache: "no-store" });
     const result = await response.json();
@@ -31,49 +32,38 @@ async function triggerDataSync() {
       throw new Error("Sync trigger failed");
     }
 
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < POLL_TIMEOUT_MS) {
-      try {
-        const pollResponse = await fetch(
-          "upcoming-event.json?cache=" + Date.now()
-        );
-
-        if (pollResponse.ok) {
-          const freshData = await pollResponse.json();
-
-          if (freshData.updatedAt && freshData.updatedAt !== oldUpdatedAt) {
-            eventData = freshData;
-            chanceData = calculateChances(eventData);
-
-            renderEvent(eventData, chanceData);
-            startCountdown();
-
-            document.getElementById("spondStatus").textContent =
-              "Verse data binnen.";
-
-            return true;
-          }
-        }
-      } catch {
-        console.log("Polling retry");
-      }
-
-      await sleep(POLL_INTERVAL_MS);
-    }
-
-    document.getElementById("spondStatus").textContent =
-      "Sync timeout. Oude data gebruikt.";
-
-    return false;
+    pollSplitserUpdate(oldSplitserUpdatedAt);
   } catch (e) {
     console.error("Sync mislukt", e);
-
-    document.getElementById("spondStatus").textContent =
-      "Sync mislukt. Oude data gebruikt.";
-
-    return false;
+    document.getElementById("splitserStatus").textContent =
+      "Splitser-sync mislukt. Oude data gebruikt.";
+    document.getElementById("splitserStatus").style.color = "#ff5c5c";
   }
+}
+
+async function pollSplitserUpdate(oldUpdatedAt) {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < POLL_TIMEOUT_MS) {
+    await sleep(POLL_INTERVAL_MS);
+
+    try {
+      const response = await fetch("splitser-overzicht.json?cache=" + Date.now());
+      if (!response.ok) continue;
+
+      const freshData = await response.json();
+
+      if (freshData.updatedAt && freshData.updatedAt !== oldUpdatedAt) {
+        splitserData = freshData;
+        renderSplitserStatus(splitserData);
+        return;
+      }
+    } catch {
+      console.log("Splitser polling retry");
+    }
+  }
+
+  renderSplitserStatus(splitserData);
 }
 
 async function loadResponses() {
@@ -229,7 +219,7 @@ async function checkHoKrat() {
 
   setResult("...", "Het Orakel raadpleegt Spond en Splitser.");
 
-  await triggerDataSync();
+  triggerDataSync();
 
   if (!eventData || !eventData.upcomingEvent) {
     setResult("NEE.", randomFrom(responses.noSpond));
