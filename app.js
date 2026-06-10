@@ -25,18 +25,23 @@ async function triggerDataSync() {
 
     const oldSplitserUpdatedAt = splitserData?.updatedAt;
 
-    const response = await fetch(SYNC_URL, { cache: "no-store" });
-    const result = await response.json();
+    const response = await fetch(SYNC_URL, {
+      cache: "no-store"
+    });
 
-    if (!result.success) {
-      throw new Error("Sync trigger failed");
+    console.log("SYNC STATUS", response.status);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
     }
 
     pollSplitserUpdate(oldSplitserUpdatedAt);
+
   } catch (e) {
-    console.error("Sync mislukt", e);
+    console.error("SYNC ERROR:", e);
+
     document.getElementById("splitserStatus").textContent =
-      "Splitser-sync mislukt. Oude data gebruikt.";
+      "Splitser-sync mislukt.";
     document.getElementById("splitserStatus").style.color = "#ff5c5c";
   }
 }
