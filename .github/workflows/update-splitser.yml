@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: "13 4 * * *"
 
+concurrency:
+  group: update-splitser
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
@@ -15,6 +19,9 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -27,8 +34,14 @@ jobs:
           SPLITSER_EMAIL: ${{ secrets.SPLITSER_EMAIL }}
           SPLITSER_PASSWORD: ${{ secrets.SPLITSER_PASSWORD }}
 
+      - name: Pull latest changes
+        run: |
+          git config pull.rebase true
+          git pull origin main || true
+
       - name: Commit updated overview
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: Update Splitser overview
           file_pattern: splitser-overzicht.json
+          push_options: --force-with-lease
