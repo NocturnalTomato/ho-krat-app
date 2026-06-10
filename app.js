@@ -110,14 +110,23 @@ async function loadEventData() {
 
 async function loadSplitserData() {
   try {
-    const response = await fetch("splitser-overzicht.json?cache=" + Date.now());
-    if (!response.ok) throw new Error("splitser-overzicht.json niet gevonden");
+    const response = await fetch(
+      "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789",
+      { cache: "no-store" }
+    );
+
+    if (!response.ok) {
+      throw new Error("Worker gaf fout terug");
+    }
 
     splitserData = await response.json();
+
     renderSplitserStatus(splitserData);
-  } catch {
+  } catch (err) {
+    console.error(err);
+
     document.getElementById("splitserStatus").textContent =
-      "Splitser-data niet gevonden.";
+      "Splitser-data niet bereikbaar.";
   }
 }
 
