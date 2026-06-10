@@ -6,10 +6,72 @@ let responses = {};
 let countdownTimer = null;
 
 const COOLDOWN_MS = 5000;
+const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
+const POLL_TIMEOUT_MS = 60000;
+const POLL_INTERVAL_MS = 3000;
 
 async function init() {
   await loadResponses();
   await loadEventData();
+}
+
+async function triggerDataSync() {
+  try {
+    document.getElementById("spondStatus").textContent =
+      "Orakel raadpleegt Spond en Splitser...";
+
+    const oldUpdatedAt = eventData?.updatedAt;
+
+    const response = await fetch(SYNC_URL, { cache: "no-store" });
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error("Sync trigger failed");
+    }
+
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < POLL_TIMEOUT_MS) {
+      try {
+        const pollResponse = await fetch(
+          "upcoming-event.json?cache=" + Date.now()
+        );
+
+        if (pollResponse.ok) {
+          const freshData = await pollResponse.json();
+
+          if (freshData.updatedAt && freshData.updatedAt !== oldUpdatedAt) {
+            eventData = freshData;
+            chanceData = calculateChances(eventData);
+
+            renderEvent(eventData, chanceData);
+            startCountdown();
+
+            document.getElementById("spondStatus").textContent =
+              "Verse data binnen.";
+
+            return true;
+          }
+        }
+      } catch {
+        console.log("Polling retry");
+      }
+
+      await sleep(POLL_INTERVAL_MS);
+    }
+
+    document.getElementById("spondStatus").textContent =
+      "Sync timeout. Oude data gebruikt.";
+
+    return false;
+  } catch (e) {
+    console.error("Sync mislukt", e);
+
+    document.getElementById("spondStatus").textContent =
+      "Sync mislukt. Oude data gebruikt.";
+
+    return false;
+  }
 }
 
 async function loadResponses() {
@@ -115,7 +177,7 @@ function renderEvent(data, chances) {
   document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
 }
 
-function checkHoKrat() {
+async function checkHoKrat() {
   const now = Date.now();
 
   if (now - lastPress < COOLDOWN_MS) {
@@ -125,6 +187,10 @@ function checkHoKrat() {
   }
 
   lastPress = now;
+
+  setResult("...", "Het Orakel raadpleegt Spond en Splitser.");
+
+  await triggerDataSync();
 
   if (!eventData || !eventData.upcomingEvent) {
     setResult("NEE.", randomFrom(responses.noSpond));
@@ -336,6 +402,10 @@ function vibratePositive() {
 function listNames(names) {
   if (!names || !names.length) return "-";
   return names.join(", ");
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function formatDate(date) {
