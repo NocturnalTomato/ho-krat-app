@@ -14,16 +14,102 @@ const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 
 async function init() {
+  ensureSplitserCardExists();
+  showSplitserDebug("Splitser-balans laden...");
   await loadResponses();
-  await loadEventData();
-  await loadSplitserData();
+
+  loadEventData();
+  loadSplitserData();
+}
+
+/* =========================
+   SPLITSER
+========================= */
+
+function ensureSplitserCardExists() {
+  if (document.getElementById("splitserCard")) return;
+
+  const eventCard = document.getElementById("eventCard");
+  const version = document.querySelector(".version");
+  const card = document.querySelector(".card");
+
+  const splitserCard = document.createElement("div");
+  splitserCard.className = "splitser-card";
+  splitserCard.id = "splitserCard";
+  splitserCard.style.display = "block";
+
+  splitserCard.innerHTML = `
+    <div class="splitser-header">
+      <div>
+        <div class="splitser-kicker">KRATBALANS DER WAARHEID</div>
+        <div class="splitser-title">Helden & Klaplopers</div>
+      </div>
+      <button class="mini-button" type="button" onclick="triggerDataSync()">Sync</button>
+    </div>
+
+    <div class="splitser-hero-box">
+      <div class="splitser-label">Grootste Kratheilige</div>
+      <div class="splitser-hero" id="splitserBigHero">-</div>
+      <div class="splitser-amount" id="splitserBigHeroAmount">-</div>
+    </div>
+
+    <div class="splitser-columns">
+      <div>
+        <h4>Helden</h4>
+        <ol class="splitser-list heroes-list" id="splitserHeroes"></ol>
+      </div>
+      <div>
+        <h4>Wie moet het krat straks halen?</h4>
+        <ol class="splitser-list klaplopers-list" id="splitserKlaplopers"></ol>
+      </div>
+    </div>
+
+    <button class="splitser-toggle" id="splitserToggle" type="button" onclick="toggleSplitserFull()">
+      Toon volledige schuldenlijst
+    </button>
+
+    <div class="splitser-full" id="splitserFullWrap" style="display:none;">
+      <h4>Volledige financiële biecht</h4>
+      <ol class="splitser-list full-list" id="splitserFullList"></ol>
+    </div>
+  `;
+
+  if (eventCard) {
+    eventCard.insertAdjacentElement("afterend", splitserCard);
+  } else if (version && card) {
+    card.insertBefore(splitserCard, version);
+  } else if (card) {
+    card.appendChild(splitserCard);
+  }
+}
+
+function showSplitserDebug(message) {
+  ensureSplitserCardExists();
+
+  const card = document.getElementById("splitserCard");
+  const hero = document.getElementById("splitserBigHero");
+  const heroAmount = document.getElementById("splitserBigHeroAmount");
+  const heroes = document.getElementById("splitserHeroes");
+  const klaplopers = document.getElementById("splitserKlaplopers");
+  const full = document.getElementById("splitserFullList");
+
+  if (card) card.style.display = "block";
+  if (hero) hero.textContent = message;
+  if (heroAmount) heroAmount.textContent = "Debugmodus: de box is zichtbaar, nu wachten op data.";
+  if (heroes) heroes.innerHTML = "";
+  if (klaplopers) klaplopers.innerHTML = "";
+  if (full) full.innerHTML = "";
 }
 
 async function triggerDataSync() {
   try {
+    showSplitserDebug("Splitser-sync gestart...");
+
     const status = document.getElementById("splitserStatus");
-    status.textContent = "Splitser-sync gestart...";
-    status.style.color = "#ffcc00";
+    if (status) {
+      status.textContent = "Splitser-sync gestart...";
+      status.style.color = "#ffcc00";
+    }
 
     const oldSplitserUpdatedAt = splitserData?.updatedAt;
 
@@ -42,8 +128,12 @@ async function triggerDataSync() {
     console.error("SYNC ERROR:", e);
 
     const status = document.getElementById("splitserStatus");
-    status.textContent = "Splitser-sync mislukt.";
-    status.style.color = "#ff5c5c";
+    if (status) {
+      status.textContent = "Splitser-sync mislukt.";
+      status.style.color = "#ff5c5c";
+    }
+
+    showSplitserDebug("Splitser-sync mislukt.");
   }
 }
 
@@ -58,85 +148,79 @@ async function pollSplitserUpdate(oldUpdatedAt) {
         cache: "no-store"
       });
 
+      console.log("SPLITSER POLL HTTP", response.status);
+
       if (!response.ok) continue;
 
       const freshData = await response.json();
+      console.log("SPLITSER POLL DATA", freshData);
 
       if (freshData.updatedAt && freshData.updatedAt !== oldUpdatedAt) {
         splitserData = freshData;
         renderSplitserStatus(splitserData);
         return;
       }
-    } catch {
-      console.log("Splitser polling retry");
+    } catch (err) {
+      console.log("Splitser polling retry", err);
     }
   }
 
   renderSplitserStatus(splitserData);
 }
 
-async function loadResponses() {
-  try {
-    const response = await fetch("responses.json?cache=" + Date.now());
-    if (!response.ok) throw new Error("responses.json niet gevonden");
-    responses = await response.json();
-  } catch {
-    responses = {
-      cooldown: ["Rustig. De Spiritueel Leider denkt na."],
-      noSpond: ["Spond is nog niet ingeladen."],
-      yes: ["Tijd voor een HO krat."],
-      maybe: ["Eerst even peilen."],
-      no: ["Vandaag nog even niet."],
-      secondCrateYes: ["Tijd voor een tweede HO krat."],
-      secondCrateNo: ["Dan wordt het dus een gecontroleerde dorst."]
-    };
-  }
-}
-
-async function loadEventData() {
-  try {
-    const response = await fetch("upcoming-event.json?cache=" + Date.now());
-    if (!response.ok) throw new Error("JSON niet gevonden");
-
-    eventData = await response.json();
-    chanceData = calculateChances(eventData);
-
-    renderEvent(eventData, chanceData);
-    document.getElementById("spondStatus").textContent = "Spond-data ingeladen.";
-    startCountdown();
-  } catch {
-    document.getElementById("spondStatus").textContent = "Spond-data niet gevonden.";
-  }
-}
-
 async function loadSplitserData() {
+  showSplitserDebug("Splitser-balans laden...");
+
+  const timeout = setTimeout(() => {
+    if (!splitserData) {
+      showSplitserDebug("Splitser is traag.");
+      const status = document.getElementById("splitserStatus");
+      if (status) {
+        status.textContent = "Splitser is traag of reageert niet.";
+        status.style.color = "#ffcc00";
+      }
+    }
+  }, 12000);
+
   try {
     const response = await fetch(SPLITSER_URL, {
       cache: "no-store"
     });
 
+    console.log("SPLITSER HTTP", response.status);
+
     if (!response.ok) {
-      throw new Error("Worker gaf fout terug");
+      throw new Error(`Worker gaf HTTP ${response.status}`);
     }
 
     splitserData = await response.json();
+    console.log("SPLITSER DATA", splitserData);
+
+    clearTimeout(timeout);
     renderSplitserStatus(splitserData);
   } catch (err) {
-    console.error(err);
+    clearTimeout(timeout);
+    console.error("SPLITSER LOAD ERROR:", err);
 
     const status = document.getElementById("splitserStatus");
-    status.textContent = "Splitser-data niet bereikbaar.";
-    status.style.color = "#ff5c5c";
+    if (status) {
+      status.textContent = "Splitser-data niet bereikbaar.";
+      status.style.color = "#ff5c5c";
+    }
+
+    showSplitserDebug("Splitser niet bereikbaar.");
   }
 }
 
 function renderSplitserStatus(data) {
   const el = document.getElementById("splitserStatus");
-  if (!el) return;
 
   if (!data?.updatedAt) {
-    el.textContent = "Splitser-data mist een update-tijd.";
-    el.style.color = "#ffcc00";
+    if (el) {
+      el.textContent = "Splitser-data geladen zonder update-tijd.";
+      el.style.color = "#ffcc00";
+    }
+
     renderSplitserCard(data);
     return;
   }
@@ -150,20 +234,24 @@ function renderSplitserStatus(data) {
     label = "Laatste Splitser-sync: zojuist";
   }
 
-  el.textContent = label;
+  if (el) {
+    el.textContent = label;
 
-  if (ageMin <= 15) {
-    el.style.color = "#46d369";
-  } else if (ageMin <= 60) {
-    el.style.color = "#ffcc00";
-  } else {
-    el.style.color = "#ff5c5c";
+    if (ageMin <= 15) {
+      el.style.color = "#46d369";
+    } else if (ageMin <= 60) {
+      el.style.color = "#ffcc00";
+    } else {
+      el.style.color = "#ff5c5c";
+    }
   }
 
   renderSplitserCard(data);
 }
 
 function renderSplitserCard(data) {
+  ensureSplitserCardExists();
+
   const card = document.getElementById("splitserCard");
   const heroEl = document.getElementById("splitserBigHero");
   const heroAmountEl = document.getElementById("splitserBigHeroAmount");
@@ -172,14 +260,23 @@ function renderSplitserCard(data) {
   const fullListEl = document.getElementById("splitserFullList");
 
   if (!card || !heroEl || !heroAmountEl || !heroesEl || !klaplopersEl || !fullListEl) {
+    console.error("Splitser HTML-elementen missen.");
     return;
   }
+
+  card.style.display = "block";
 
   const members = normalizeSplitserMembers(data)
     .filter(member => Number.isFinite(member.amountCents));
 
+  console.log("SPLITSER NORMALIZED MEMBERS", members);
+
   if (!members.length) {
-    card.style.display = "none";
+    heroEl.textContent = "Geen leden gevonden.";
+    heroAmountEl.textContent = "De Worker reageert wel, maar de app herkent de ledenlijst niet. Check console: SPLITSER DATA.";
+    heroesEl.innerHTML = "";
+    klaplopersEl.innerHTML = "";
+    fullListEl.innerHTML = "";
     return;
   }
 
@@ -206,25 +303,18 @@ function renderSplitserCard(data) {
 
   fullListEl.innerHTML = "";
 
-  const top3HighIds = new Set(top3High.map(member => member.id || getSplitserName(member)));
-  const top3LowIds = new Set(top3Low.map(member => member.id || getSplitserName(member)));
+  const top3HighKeys = new Set(top3High.map(member => member.id || getSplitserName(member)));
+  const top3LowKeys = new Set(top3Low.map(member => member.id || getSplitserName(member)));
 
   sortedHigh.forEach(member => {
     const li = createSplitserRankItem(member, getSplitserName(member));
     const key = member.id || getSplitserName(member);
 
-    if (top3HighIds.has(key)) {
-      li.classList.add("top-plus");
-    }
-
-    if (top3LowIds.has(key)) {
-      li.classList.add("top-minus");
-    }
+    if (top3HighKeys.has(key)) li.classList.add("top-plus");
+    if (top3LowKeys.has(key)) li.classList.add("top-minus");
 
     fullListEl.appendChild(li);
   });
-
-  card.style.display = "block";
 }
 
 function normalizeSplitserMembers(data) {
@@ -238,32 +328,46 @@ function normalizeSplitserMembers(data) {
     return data.members.map(normalizeSplitserMember);
   }
 
-  if (Array.isArray(data.balance)) {
-    return data.balance.map(normalizeSplitserMember);
-  }
-
   if (Array.isArray(data.data)) {
     return data.data.map(normalizeSplitserMember);
   }
 
-  if (Array.isArray(data.balance?.member_totals)) {
-    return data.balance.member_totals.map(item => {
-      const total = item.member_total || item;
-      const member = total.member || {};
-      const money = total.balance_total || {};
+  if (Array.isArray(data.balance)) {
+    return data.balance.map(normalizeSplitserMember);
+  }
 
-      return normalizeSplitserMember({
-        id: member.id,
-        name: member.nickname,
-        fullName: member.full_name,
-        amountCents: money.fractional,
-        amount: money.formatted,
-        isCurrent: member.is_current
-      });
-    });
+  if (Array.isArray(data.member_totals)) {
+    return data.member_totals.map(normalizeWbwMemberTotal);
+  }
+
+  if (Array.isArray(data.balance?.member_totals)) {
+    return data.balance.member_totals.map(normalizeWbwMemberTotal);
+  }
+
+  if (Array.isArray(data.data?.balance?.member_totals)) {
+    return data.data.balance.member_totals.map(normalizeWbwMemberTotal);
+  }
+
+  if (Array.isArray(data.data?.members)) {
+    return data.data.members.map(normalizeSplitserMember);
   }
 
   return [];
+}
+
+function normalizeWbwMemberTotal(item) {
+  const total = item.member_total || item;
+  const member = total.member || {};
+  const money = total.balance_total || {};
+
+  return normalizeSplitserMember({
+    id: member.id,
+    name: member.nickname,
+    fullName: member.full_name,
+    amountCents: money.fractional,
+    amount: money.formatted,
+    isCurrent: member.is_current
+  });
 }
 
 function normalizeSplitserMember(member) {
@@ -271,12 +375,13 @@ function normalizeSplitserMember(member) {
     toValidNumber(member.amountCents) ??
     toValidNumber(member.balanceCents) ??
     toValidNumber(member.cents) ??
+    toValidNumber(member.fractional) ??
     parseAmountToCents(member.amount) ??
     parseAmountToCents(member.balance) ??
     0;
 
   return {
-    id: member.id || member.memberId || member.name || member.fullName,
+    id: member.id || member.memberId || member.name || member.fullName || member.full_name,
     name: member.name || member.nickname || member.fullName || member.full_name,
     fullName: member.fullName || member.full_name || member.name || member.nickname,
     amountCents,
@@ -381,6 +486,44 @@ function parseAmountToCents(value) {
   return Math.round(number * 100);
 }
 
+/* =========================
+   RESPONSES + SPOND
+========================= */
+
+async function loadResponses() {
+  try {
+    const response = await fetch("responses.json?cache=" + Date.now());
+    if (!response.ok) throw new Error("responses.json niet gevonden");
+    responses = await response.json();
+  } catch {
+    responses = {
+      cooldown: ["Rustig. De Spiritueel Leider denkt na."],
+      noSpond: ["Spond is nog niet ingeladen."],
+      yes: ["Tijd voor een HO krat."],
+      maybe: ["Eerst even peilen."],
+      no: ["Vandaag nog even niet."],
+      secondCrateYes: ["Tijd voor een tweede HO krat."],
+      secondCrateNo: ["Dan wordt het dus een gecontroleerde dorst."]
+    };
+  }
+}
+
+async function loadEventData() {
+  try {
+    const response = await fetch("upcoming-event.json?cache=" + Date.now());
+    if (!response.ok) throw new Error("JSON niet gevonden");
+
+    eventData = await response.json();
+    chanceData = calculateChances(eventData);
+
+    renderEvent(eventData, chanceData);
+    document.getElementById("spondStatus").textContent = "Spond-data ingeladen.";
+    startCountdown();
+  } catch {
+    document.getElementById("spondStatus").textContent = "Spond-data niet gevonden.";
+  }
+}
+
 function calculateChances(data) {
   const event = data.upcomingEvent || {};
   const counts = event.counts || {};
@@ -449,6 +592,10 @@ function renderEvent(data, chances) {
   document.getElementById("declinedNames").textContent = listNames(event.declined);
   document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
 }
+
+/* =========================
+   HO KRAT BUTTON
+========================= */
 
 async function checkHoKrat() {
   const now = Date.now();
@@ -590,6 +737,10 @@ function popupNo() {
     vibratePositive();
   }
 }
+
+/* =========================
+   HELPERS
+========================= */
 
 function setChance(id, value) {
   document.getElementById(id + "Chance").textContent = value + "%";
