@@ -6,14 +6,18 @@ let responses = {};
 let countdownTimer = null;
 let splitserData = null;
 let splitserFullOpen = false;
+let kratflapCheckCount = 0;
+let kratflapUnlocked = false;
 
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const SPLITSER_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
+const KRATFLAP_UNLOCK_KEY = "hokrat_kratflap_unlocked";
 
 async function init() {
+  restoreKratflapUnlock();
   showSplitserLoading();
   await loadResponses();
 
@@ -473,6 +477,8 @@ function renderEvent(data, chances) {
 ========================= */
 
 async function checkHoKrat() {
+  registerKratflapCheck();
+
   const now = Date.now();
 
   if (now - lastPress < COOLDOWN_MS) {
@@ -611,6 +617,55 @@ function popupNo() {
     setResult("JA MAN.", randomFrom(responses.secondCrateYes));
     vibratePositive();
   }
+}
+
+/* =========================
+   KRATFLAP GAME
+========================= */
+
+function restoreKratflapUnlock() {
+  kratflapUnlocked = localStorage.getItem(KRATFLAP_UNLOCK_KEY) === "1";
+
+  if (kratflapUnlocked) {
+    showKratflapTeaser();
+  }
+}
+
+function registerKratflapCheck() {
+  if (kratflapUnlocked) return;
+
+  kratflapCheckCount += 1;
+
+  if (kratflapCheckCount >= 5) {
+    kratflapUnlocked = true;
+    localStorage.setItem(KRATFLAP_UNLOCK_KEY, "1");
+    showKratflapTeaser();
+  }
+}
+
+function showKratflapTeaser() {
+  const teaser = document.getElementById("kratflapTeaser");
+  if (!teaser) return;
+
+  teaser.style.display = "block";
+}
+
+function openKratflap() {
+  const sheet = document.getElementById("kratflapSheet");
+  if (!sheet) return;
+
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeKratflap() {
+  const sheet = document.getElementById("kratflapSheet");
+  if (!sheet) return;
+
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
 }
 
 /* =========================
