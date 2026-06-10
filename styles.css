@@ -80,7 +80,8 @@ button:active {
   letter-spacing: 0.4px;
 }
 
-.event-card {
+.event-card,
+.splitser-card {
   margin-top: 22px;
   padding: 18px;
   border-radius: 24px;
@@ -195,6 +196,172 @@ summary {
   font-size: 14px;
 }
 
+.splitser-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.splitser-kicker {
+  color: #a1a1a6;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.9px;
+}
+
+.splitser-title {
+  margin-top: 3px;
+  font-size: 22px;
+  font-weight: 950;
+  letter-spacing: -0.5px;
+}
+
+.mini-button,
+.splitser-toggle {
+  width: auto;
+  height: auto;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 950;
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #050505;
+}
+
+.splitser-hero-box {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  margin-bottom: 14px;
+}
+
+.splitser-label {
+  color: #a1a1a6;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.splitser-hero {
+  font-size: 23px;
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.splitser-amount {
+  margin-top: 5px;
+  color: #d8d8dc;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.splitser-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.splitser-columns h4,
+.splitser-full h4 {
+  margin: 0 0 7px;
+  color: #a1a1a6;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.splitser-list {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.splitser-list li {
+  margin-bottom: 8px;
+  line-height: 1.25;
+}
+
+.rank-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.rank-amount {
+  display: block;
+  margin-top: 2px;
+  color: #a1a1a6;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.heroes-list li:nth-child(1)::marker {
+  content: "👑 ";
+}
+
+.heroes-list li:nth-child(2)::marker {
+  content: "🍺 ";
+}
+
+.heroes-list li:nth-child(3)::marker {
+  content: "🧾 ";
+}
+
+.klaplopers-list li:nth-child(1)::marker {
+  content: "🪣 ";
+}
+
+.klaplopers-list li:nth-child(2)::marker {
+  content: "🐀 ";
+}
+
+.klaplopers-list li:nth-child(3)::marker {
+  content: "🤲 ";
+}
+
+.klaplopers-list li:nth-child(4)::marker {
+  content: "🚲 ";
+}
+
+.klaplopers-list li:nth-child(5)::marker {
+  content: "🍻 ";
+}
+
+.splitser-toggle {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.splitser-full {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.full-list li.top-plus .rank-name {
+  color: #ffffff;
+}
+
+.full-list li.top-plus::marker {
+  content: "Held ";
+}
+
+.full-list li.top-minus .rank-name {
+  color: #ffb3b3;
+}
+
+.full-list li.top-minus::marker {
+  content: "Klap ";
+}
+
 .version {
   margin-top: 22px;
   color: rgba(255, 255, 255, 0.35);
@@ -238,4 +405,10 @@ summary {
   height: 56px;
   border-radius: 18px;
   font-size: 20px;
+}
+
+@media (min-width: 520px) {
+  .splitser-columns {
+    grid-template-columns: 1fr 1fr;
+  }
 }
