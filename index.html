@@ -17,6 +17,7 @@
 
     <div class="answer" id="answer">Druk op de knop.</div>
     <div class="sub" id="sub"></div>
+
     <div class="spond-status" id="spondStatus">Spond-data laden...</div>
     <div class="spond-status" id="splitserStatus">Splitser-data laden...</div>
 
@@ -26,9 +27,18 @@
       <div class="countdown" id="countdown"></div>
 
       <div class="stats">
-        <div class="stat"><div class="stat-value" id="attendingCount">-</div><div class="stat-label">KOMT</div></div>
-        <div class="stat"><div class="stat-value" id="declinedCount">-</div><div class="stat-label">NIET</div></div>
-        <div class="stat"><div class="stat-value" id="unansweredCount">-</div><div class="stat-label">LAF</div></div>
+        <div class="stat">
+          <div class="stat-value" id="attendingCount">-</div>
+          <div class="stat-label">KOMT</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="declinedCount">-</div>
+          <div class="stat-label">NIET</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="unansweredCount">-</div>
+          <div class="stat-label">LAF</div>
+        </div>
       </div>
 
       <div class="chance-box">
@@ -47,9 +57,18 @@
       <details>
         <summary>Wie dan?</summary>
         <div class="people">
-          <div><h4>Komt</h4><div class="names" id="attendingNames">-</div></div>
-          <div><h4>Komt niet</h4><div class="names" id="declinedNames">-</div></div>
-          <div><h4>Nog niks gezegd</h4><div class="names" id="unansweredNames">-</div></div>
+          <div>
+            <h4>Komt</h4>
+            <div class="names" id="attendingNames">-</div>
+          </div>
+          <div>
+            <h4>Komt niet</h4>
+            <div class="names" id="declinedNames">-</div>
+          </div>
+          <div>
+            <h4>Nog niks gezegd</h4>
+            <div class="names" id="unansweredNames">-</div>
+          </div>
         </div>
       </details>
     </div>
@@ -60,7 +79,7 @@
           <div class="splitser-kicker">KRATBALANS DER WAARHEID</div>
           <div class="splitser-title">Helden & Klaplopers</div>
         </div>
-        <button class="mini-button" onclick="triggerDataSync()">Sync</button>
+        <button class="mini-button" type="button" onclick="triggerDataSync()">Sync</button>
       </div>
 
       <div class="splitser-hero-box">
@@ -80,7 +99,7 @@
         </div>
       </div>
 
-      <button class="splitser-toggle" id="splitserToggle" onclick="toggleSplitserFull()">
+      <button class="splitser-toggle" id="splitserToggle" type="button" onclick="toggleSplitserFull()">
         Toon volledige schuldenlijst
       </button>
 
@@ -97,8 +116,8 @@
     <div class="popup-box">
       <div class="popup-title" id="popup-title"></div>
       <div class="popup-buttons">
-        <button onclick="popupYes()">Ja</button>
-        <button onclick="popupNo()">Nee</button>
+        <button type="button" onclick="popupYes()">Ja</button>
+        <button type="button" onclick="popupNo()">Nee</button>
       </div>
     </div>
   </div>
