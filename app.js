@@ -5,9 +5,11 @@ let chanceData = null;
 let responses = {};
 let countdownTimer = null;
 let splitserData = null;
+let splitserFullOpen = false;
 
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
+const SPLITSER_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 
@@ -19,9 +21,9 @@ async function init() {
 
 async function triggerDataSync() {
   try {
-    document.getElementById("splitserStatus").textContent =
-      "Splitser-sync gestart...";
-    document.getElementById("splitserStatus").style.color = "#ffcc00";
+    const status = document.getElementById("splitserStatus");
+    status.textContent = "Splitser-sync gestart...";
+    status.style.color = "#ffcc00";
 
     const oldSplitserUpdatedAt = splitserData?.updatedAt;
 
@@ -36,13 +38,12 @@ async function triggerDataSync() {
     }
 
     pollSplitserUpdate(oldSplitserUpdatedAt);
-
   } catch (e) {
     console.error("SYNC ERROR:", e);
 
-    document.getElementById("splitserStatus").textContent =
-      "Splitser-sync mislukt.";
-    document.getElementById("splitserStatus").style.color = "#ff5c5c";
+    const status = document.getElementById("splitserStatus");
+    status.textContent = "Splitser-sync mislukt.";
+    status.style.color = "#ff5c5c";
   }
 }
 
@@ -53,10 +54,10 @@ async function pollSplitserUpdate(oldUpdatedAt) {
     await sleep(POLL_INTERVAL_MS);
 
     try {
-      const response = await fetch(
-  "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789",
-  { cache: "no-store" }
-);
+      const response = await fetch(SPLITSER_URL, {
+        cache: "no-store"
+      });
+
       if (!response.ok) continue;
 
       const freshData = await response.json();
@@ -110,29 +111,35 @@ async function loadEventData() {
 
 async function loadSplitserData() {
   try {
-    const response = await fetch(
-      "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789",
-      { cache: "no-store" }
-    );
+    const response = await fetch(SPLITSER_URL, {
+      cache: "no-store"
+    });
 
     if (!response.ok) {
       throw new Error("Worker gaf fout terug");
     }
 
     splitserData = await response.json();
-
     renderSplitserStatus(splitserData);
   } catch (err) {
     console.error(err);
 
-    document.getElementById("splitserStatus").textContent =
-      "Splitser-data niet bereikbaar.";
+    const status = document.getElementById("splitserStatus");
+    status.textContent = "Splitser-data niet bereikbaar.";
+    status.style.color = "#ff5c5c";
   }
 }
 
 function renderSplitserStatus(data) {
   const el = document.getElementById("splitserStatus");
-  if (!el || !data?.updatedAt) return;
+  if (!el) return;
+
+  if (!data?.updatedAt) {
+    el.textContent = "Splitser-data mist een update-tijd.";
+    el.style.color = "#ffcc00";
+    renderSplitserCard(data);
+    return;
+  }
 
   const ageMs = Date.now() - new Date(data.updatedAt).getTime();
   const ageMin = Math.floor(ageMs / 60000);
@@ -152,6 +159,226 @@ function renderSplitserStatus(data) {
   } else {
     el.style.color = "#ff5c5c";
   }
+
+  renderSplitserCard(data);
+}
+
+function renderSplitserCard(data) {
+  const card = document.getElementById("splitserCard");
+  const heroEl = document.getElementById("splitserBigHero");
+  const heroAmountEl = document.getElementById("splitserBigHeroAmount");
+  const heroesEl = document.getElementById("splitserHeroes");
+  const klaplopersEl = document.getElementById("splitserKlaplopers");
+  const fullListEl = document.getElementById("splitserFullList");
+
+  if (!card || !heroEl || !heroAmountEl || !heroesEl || !klaplopersEl || !fullListEl) {
+    return;
+  }
+
+  const members = normalizeSplitserMembers(data)
+    .filter(member => Number.isFinite(member.amountCents));
+
+  if (!members.length) {
+    card.style.display = "none";
+    return;
+  }
+
+  const sortedHigh = [...members].sort((a, b) => b.amountCents - a.amountCents);
+  const sortedLow = [...members].sort((a, b) => a.amountCents - b.amountCents);
+
+  const biggestHero = sortedHigh[0];
+  const top3High = sortedHigh.slice(0, 3);
+  const top5Low = sortedLow.slice(0, 5);
+  const top3Low = sortedLow.slice(0, 3);
+
+  heroEl.textContent = getSplitserName(biggestHero);
+  heroAmountEl.textContent = `${formatSplitserAmount(biggestHero)} in de plus. Deze man draagt het krat op zijn rug.`;
+
+  heroesEl.innerHTML = "";
+  top3High.forEach((member, index) => {
+    heroesEl.appendChild(createSplitserRankItem(member, getHeroTitle(index, member)));
+  });
+
+  klaplopersEl.innerHTML = "";
+  top5Low.forEach((member, index) => {
+    klaplopersEl.appendChild(createSplitserRankItem(member, getKlaploperTitle(index, member)));
+  });
+
+  fullListEl.innerHTML = "";
+
+  const top3HighIds = new Set(top3High.map(member => member.id || getSplitserName(member)));
+  const top3LowIds = new Set(top3Low.map(member => member.id || getSplitserName(member)));
+
+  sortedHigh.forEach(member => {
+    const li = createSplitserRankItem(member, getSplitserName(member));
+    const key = member.id || getSplitserName(member);
+
+    if (top3HighIds.has(key)) {
+      li.classList.add("top-plus");
+    }
+
+    if (top3LowIds.has(key)) {
+      li.classList.add("top-minus");
+    }
+
+    fullListEl.appendChild(li);
+  });
+
+  card.style.display = "block";
+}
+
+function normalizeSplitserMembers(data) {
+  if (!data) return [];
+
+  if (Array.isArray(data)) {
+    return data.map(normalizeSplitserMember);
+  }
+
+  if (Array.isArray(data.members)) {
+    return data.members.map(normalizeSplitserMember);
+  }
+
+  if (Array.isArray(data.balance)) {
+    return data.balance.map(normalizeSplitserMember);
+  }
+
+  if (Array.isArray(data.data)) {
+    return data.data.map(normalizeSplitserMember);
+  }
+
+  if (Array.isArray(data.balance?.member_totals)) {
+    return data.balance.member_totals.map(item => {
+      const total = item.member_total || item;
+      const member = total.member || {};
+      const money = total.balance_total || {};
+
+      return normalizeSplitserMember({
+        id: member.id,
+        name: member.nickname,
+        fullName: member.full_name,
+        amountCents: money.fractional,
+        amount: money.formatted,
+        isCurrent: member.is_current
+      });
+    });
+  }
+
+  return [];
+}
+
+function normalizeSplitserMember(member) {
+  const amountCents =
+    toValidNumber(member.amountCents) ??
+    toValidNumber(member.balanceCents) ??
+    toValidNumber(member.cents) ??
+    parseAmountToCents(member.amount) ??
+    parseAmountToCents(member.balance) ??
+    0;
+
+  return {
+    id: member.id || member.memberId || member.name || member.fullName,
+    name: member.name || member.nickname || member.fullName || member.full_name,
+    fullName: member.fullName || member.full_name || member.name || member.nickname,
+    amountCents,
+    amount: member.amount || member.balance || null,
+    isCurrent: member.isCurrent ?? member.is_current ?? true
+  };
+}
+
+function createSplitserRankItem(member, title) {
+  const li = document.createElement("li");
+
+  const name = document.createElement("span");
+  name.className = "rank-name";
+  name.textContent = title;
+
+  const amount = document.createElement("span");
+  amount.className = "rank-amount";
+  amount.textContent = formatSplitserAmount(member);
+
+  li.appendChild(name);
+  li.appendChild(amount);
+
+  return li;
+}
+
+function toggleSplitserFull() {
+  const wrap = document.getElementById("splitserFullWrap");
+  const button = document.getElementById("splitserToggle");
+
+  if (!wrap || !button) return;
+
+  splitserFullOpen = !splitserFullOpen;
+  wrap.style.display = splitserFullOpen ? "block" : "none";
+  button.textContent = splitserFullOpen
+    ? "Verberg de financiële ellende"
+    : "Toon volledige schuldenlijst";
+}
+
+function getHeroTitle(index, member) {
+  const name = getSplitserName(member);
+
+  const titles = [
+    `Kratheilige ${name}`,
+    `Beschermheer ${name}`,
+    `Gulle Gele ${name}`
+  ];
+
+  return titles[index] || name;
+}
+
+function getKlaploperTitle(index, member) {
+  const name = getSplitserName(member);
+
+  const titles = [
+    `Kratplichtige ${name}`,
+    `Hoofdelijk Omgeslagen ${name}`,
+    `Financieel Verdwaalde ${name}`,
+    `Mag fietsen ${name}`,
+    `Kratontwijker ${name}`
+  ];
+
+  return titles[index] || name;
+}
+
+function getSplitserName(member) {
+  return member.name || member.fullName || "Onbekende dorstige";
+}
+
+function formatSplitserAmount(member) {
+  if (member.amount) return member.amount;
+
+  return (member.amountCents / 100).toLocaleString("nl-NL", {
+    style: "currency",
+    currency: "EUR"
+  });
+}
+
+function toValidNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function parseAmountToCents(value) {
+  if (typeof value === "number") {
+    return Math.round(value * 100);
+  }
+
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const cleaned = value
+    .replace(/[^0-9,.-]/g, "")
+    .replace(",", ".");
+
+  const number = Number(cleaned);
+
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+
+  return Math.round(number * 100);
 }
 
 function calculateChances(data) {
