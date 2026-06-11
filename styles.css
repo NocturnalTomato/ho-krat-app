@@ -619,3 +619,34 @@ summary {
   flex: 0 0 auto;
   margin-top: 0;
 }
+
+.next-event-card {
+  cursor: pointer;
+}
+
+.next-event-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.next-event-summary::-webkit-details-marker {
+  display: none;
+}
+
+.next-event-summary::after {
+  content: "Open";
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 0.75rem;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.next-event-card[open] .next-event-summary::after {
+  content: "Sluit";
+}
+
+.event-meta.compact {
+  margin-top: 6px;
+}
