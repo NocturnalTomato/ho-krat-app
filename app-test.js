@@ -12,7 +12,7 @@ let kratflapUnlocked = false;
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const SPLITSER_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
-const SPOND_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/";
+const SPOND_URL = "https://ho-krat-spond-d1-test.lucdegoeij.workers.dev/";
 const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 const KRATFLAP_UNLOCK_KEY = "hokrat_kratflap_unlocked";
