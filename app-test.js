@@ -449,22 +449,40 @@ function calculateChances(data) {
 }
 
 function renderEvent(data, chances) {
-  const event = data.upcomingEvent || {};
+  const primaryEvent = data.currentEvent || data.upcomingEvent || null;
+
+  const secondaryEvent =
+    data.nextEvent && primaryEvent && data.nextEvent.id !== primaryEvent.id
+      ? data.nextEvent
+      : null;
+
+  renderPrimaryEventCard(data, primaryEvent, chances);
+  renderNextEventCard(data, secondaryEvent);
+}
+
+function renderPrimaryEventCard(data, event, chances) {
+  if (!event) {
+    document.getElementById("eventCard").style.display = "none";
+    return;
+  }
+
   const counts = event.counts || {};
   const start = new Date(event.startTimestamp);
-  const end = new Date(event.endTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
 
   document.getElementById("eventCard").style.display = "block";
   document.getElementById("eventTitle").textContent =
     `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
 
   document.getElementById("eventMeta").innerHTML = `
-    ${formatDate(start)} · ${formatTime(start)}-${formatTime(end)}
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
     <br>
     Locatie: ${event.location || "Nog geen locatie"}
     <br>
     Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
   `;
+
+  document.getElementById("countdown").textContent = formatCountdown(start);
 
   document.getElementById("attendingCount").textContent = counts.attending ?? "-";
   document.getElementById("declinedCount").textContent = counts.declined ?? "-";
@@ -477,7 +495,43 @@ function renderEvent(data, chances) {
   document.getElementById("declinedNames").textContent = listNames(event.declined);
   document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
   document.getElementById("lastMinuteDeclinedNames").textContent =
-  listLastMinuteDeclined(event.lastMinuteDeclined);
+    listLastMinuteDeclined(event.lastMinuteDeclined);
+}
+
+function renderNextEventCard(data, event) {
+  const card = document.getElementById("nextEventCard");
+
+  if (!card) return;
+
+  if (!event) {
+    card.style.display = "none";
+    return;
+  }
+
+  const counts = event.counts || {};
+  const start = new Date(event.startTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
+
+  card.style.display = "block";
+
+  document.getElementById("nextEventTitle").textContent =
+    `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
+
+  document.getElementById("nextEventMeta").innerHTML = `
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
+    <br>
+    Locatie: ${event.location || "Nog geen locatie"}
+  `;
+
+  document.getElementById("nextEventCountdown").textContent = formatCountdown(start);
+
+  document.getElementById("nextAttendingCount").textContent = counts.attending ?? "-";
+  document.getElementById("nextDeclinedCount").textContent = counts.declined ?? "-";
+  document.getElementById("nextUnansweredCount").textContent = counts.unanswered ?? "-";
+
+  document.getElementById("nextAttendingNames").textContent = listNames(event.attending);
+  document.getElementById("nextDeclinedNames").textContent = listNames(event.declined);
+  document.getElementById("nextUnansweredNames").textContent = listNames(event.unanswered);
 }
 
 /* =========================
