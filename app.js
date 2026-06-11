@@ -12,6 +12,7 @@ let kratflapUnlocked = false;
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const SPLITSER_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
+const SPOND_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/";
 const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 const KRATFLAP_UNLOCK_KEY = "hokrat_kratflap_unlocked";
@@ -379,7 +380,10 @@ async function loadResponses() {
 
 async function loadEventData() {
   try {
-    const response = await fetch("upcoming-event.json?cache=" + Date.now());
+    const response = await fetch(SPOND_URL + "?cache=" + Date.now(), {
+      cache: "no-store"
+    });
+
     if (!response.ok) throw new Error("JSON niet gevonden");
 
     eventData = await response.json();
@@ -389,12 +393,14 @@ async function loadEventData() {
 
     const spondStatus = document.getElementById("spondStatus");
     if (spondStatus) {
-      spondStatus.textContent = "Spond-data ingeladen.";
+      spondStatus.textContent = "Spond-data live ingeladen.";
       spondStatus.style.color = "#46d369";
     }
 
     startCountdown();
-  } catch {
+  } catch (err) {
+    console.error("SPOND LOAD ERROR:", err);
+
     const spondStatus = document.getElementById("spondStatus");
     if (spondStatus) {
       spondStatus.textContent = "Spond-data niet gevonden.";
