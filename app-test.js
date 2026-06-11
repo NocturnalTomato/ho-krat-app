@@ -476,6 +476,8 @@ function renderEvent(data, chances) {
   document.getElementById("attendingNames").textContent = listNames(event.attending);
   document.getElementById("declinedNames").textContent = listNames(event.declined);
   document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
+  document.getElementById("lastMinuteDeclinedNames").textContent =
+  listLastMinuteDeclined(event.lastMinuteDeclined);
 }
 
 /* =========================
@@ -760,6 +762,11 @@ function vibratePositive() {
 function listNames(names) {
   if (!names || !names.length) return "-";
   return names.join(", ");
+}
+
+function listLastMinuteDeclined(items) {
+  if (!items || !items.length) return "-";
+  return items.map(item => item.name).join(", ");
 }
 
 function sleep(ms) {
