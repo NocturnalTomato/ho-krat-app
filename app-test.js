@@ -460,79 +460,9 @@ function renderEvent(data, chances) {
   renderNextEventCard(data, secondaryEvent);
 }
 
-function renderPrimaryEventCard(data, event, chances) {
-  if (!event) {
-    document.getElementById("eventCard").style.display = "none";
-    return;
-  }
 
-  const counts = event.counts || {};
-  const start = new Date(event.startTimestamp);
-  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
 
-  document.getElementById("eventCard").style.display = "block";
-  document.getElementById("eventTitle").textContent =
-    `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
 
-  document.getElementById("eventMeta").innerHTML = `
-    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
-    <br>
-    Locatie: ${event.location || "Nog geen locatie"}
-    <br>
-    Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
-  `;
-
-  document.getElementById("countdown").textContent = formatCountdown(start);
-
-  document.getElementById("attendingCount").textContent = counts.attending ?? "-";
-  document.getElementById("declinedCount").textContent = counts.declined ?? "-";
-  document.getElementById("unansweredCount").textContent = counts.unanswered ?? "-";
-
-  setChance("second", chances.secondCrate);
-  setChance("escalation", chances.escalation);
-
-  document.getElementById("attendingNames").textContent = listNames(event.attending);
-  document.getElementById("declinedNames").textContent = listNames(event.declined);
-  document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
-  document.getElementById("lastMinuteDeclinedNames").textContent =
-    listLastMinuteDeclined(event.lastMinuteDeclined);
-}
-
-function renderNextEventCard(data, event) {
-  const card = document.getElementById("nextEventCard");
-
-  if (!card) return;
-
-  if (!event) {
-    card.style.display = "none";
-    return;
-  }
-
-  const counts = event.counts || {};
-  const start = new Date(event.startTimestamp);
-  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
-
-  card.style.display = "block";
-
-  document.getElementById("nextEventTitle").textContent =
-    `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
-
-  document.getElementById("nextEventMeta").innerHTML = `
-    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
-    <br>
-    Locatie: ${event.location || "Nog geen locatie"}
-  `;
-
-  document.getElementById("nextEventCountdown").textContent = formatCountdown(start);
-
-  document.getElementById("nextAttendingCount").textContent = counts.attending ?? "-";
-  document.getElementById("nextDeclinedCount").textContent = counts.declined ?? "-";
-  document.getElementById("nextUnansweredCount").textContent = counts.unanswered ?? "-";
-
-  document.getElementById("nextAttendingNames").textContent = listNames(event.attending);
-  document.getElementById("nextDeclinedNames").textContent = listNames(event.declined);
-  document.getElementById("nextUnansweredNames").textContent = listNames(event.unanswered);
-}
 
 /* =========================
    HO KRAT BUTTON
@@ -734,9 +664,103 @@ function closeKratflap() {
    HELPERS
 ========================= */
 
+function renderPrimaryEventCard(data, event, chances) {
+  const card = document.getElementById("eventCard");
+
+  if (!card) return;
+
+  if (!event) {
+    card.style.display = "none";
+    return;
+  }
+
+  const counts = event.counts || {};
+  const start = new Date(event.startTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
+
+  card.style.display = "block";
+
+  setText("eventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
+
+  setHtml("eventMeta", `
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
+    <br>
+    Locatie: ${event.location || "Nog geen locatie"}
+    <br>
+    Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
+  `);
+
+  setText("countdown", formatCountdown(start));
+
+  setText("attendingCount", counts.attending ?? "-");
+  setText("declinedCount", counts.declined ?? "-");
+  setText("unansweredCount", counts.unanswered ?? "-");
+
+  if (chances) {
+    setChance("second", chances.secondCrate);
+    setChance("escalation", chances.escalation);
+  }
+
+  setText("attendingNames", listNames(event.attending));
+  setText("declinedNames", listNames(event.declined));
+  setText("unansweredNames", listNames(event.unanswered));
+  setText("lastMinuteDeclinedNames", listLastMinuteDeclined(event.lastMinuteDeclined));
+}
+
+function renderNextEventCard(data, event) {
+  const card = document.getElementById("nextEventCard");
+
+  if (!card) return;
+
+  if (!event) {
+    card.style.display = "none";
+    return;
+  }
+
+  const counts = event.counts || {};
+  const start = new Date(event.startTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
+
+  card.style.display = "block";
+
+  setText("nextEventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
+
+  setHtml("nextEventMeta", `
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
+    <br>
+    Locatie: ${event.location || "Nog geen locatie"}
+  `);
+
+  setText("nextEventCountdown", formatCountdown(start));
+
+  setText("nextAttendingCount", counts.attending ?? "-");
+  setText("nextDeclinedCount", counts.declined ?? "-");
+  setText("nextUnansweredCount", counts.unanswered ?? "-");
+
+  setText("nextAttendingNames", listNames(event.attending));
+  setText("nextDeclinedNames", listNames(event.declined));
+  setText("nextUnansweredNames", listNames(event.unanswered));
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value;
+}
+
+function setHtml(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = value;
+}
+
 function setChance(id, value) {
-  document.getElementById(id + "Chance").textContent = value + "%";
-  document.getElementById(id + "Bar").style.width = value + "%";
+  setText(id + "Chance", value + "%");
+
+  const bar = document.getElementById(id + "Bar");
+  if (bar) {
+    bar.style.width = value + "%";
+  }
 }
 
 function startCountdown() {
