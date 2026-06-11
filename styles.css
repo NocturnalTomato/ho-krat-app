@@ -602,3 +602,15 @@ summary {
   border: 0;
   background: #050505;
 }
+
+.event-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-header .event-title {
+  flex: 1;
+}
+
