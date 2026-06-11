@@ -842,6 +842,33 @@ function formatTime(date) {
   });
 }
 
+function formatCountdown(start) {
+  if (!(start instanceof Date) || Number.isNaN(start.getTime())) {
+    return "-";
+  }
+
+  const diffMs = start.getTime() - Date.now();
+
+  if (diffMs <= 0) {
+    return "Bezig / vandaag";
+  }
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) {
+    return `Nog ${days}d ${hours}u`;
+  }
+
+  if (hours > 0) {
+    return `Nog ${hours}u ${minutes}m`;
+  }
+
+  return `Nog ${minutes}m`;
+}
+
 function formatDateTime(date) {
   return date.toLocaleString("nl-NL", {
     day: "numeric",
