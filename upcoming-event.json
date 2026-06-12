@@ -1,45 +1,43 @@
 {
-  "updatedAt": "2026-06-11T09:10:41.913846+00:00",
+  "updatedAt": "2026-06-12T08:55:10.299170+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
   "memberCount": 20,
   "upcomingEvent": {
-    "id": "579D1E7F9DCB4EBDA5929354F359A0A7",
-    "name": "Training",
-    "startTimestamp": "2026-06-11T17:00:00Z",
-    "endTimestamp": "2026-06-11T18:00:00Z",
+    "id": "02516F6163DA44B08FEBA99DF5B8F469",
+    "name": "Leiden thuis",
+    "startTimestamp": "2026-06-14T10:00:00Z",
+    "endTimestamp": "2026-06-14T11:00:00Z",
     "location": null,
-    "type": "training",
+    "type": "wedstrijd",
     "attending": [
+      "Bart Gijsberts",
       "Bas Quirijns",
       "Bob Leuterrr",
+      "Chris Willemsen",
       "Faas Van t Hek",
       "Floris Hage",
       "Jasper Zaar",
+      "Jeroen Mossinkoff",
       "Joost Kirkenier",
+      "Joost Sleddering",
       "Luc de Goeij",
       "Maarten Bambacht",
       "Marc Segers",
+      "Michiel Willemsen",
       "Rikkert Verberne",
       "Thijs Oudkerk",
       "Thomas Taks",
       "Victor Peet"
     ],
     "declined": [
-      "Bart Gijsberts",
-      "Chris Willemsen",
-      "Jeroen Mossinkoff",
-      "Joost Sleddering",
-      "Michiel Willemsen",
       "Willem van Rootselaar"
     ],
-    "unanswered": [
-      "Wilma Willemsen"
-    ],
+    "unanswered": [],
     "counts": {
-      "attending": 13,
-      "declined": 6,
-      "unanswered": 1
+      "attending": 18,
+      "declined": 1,
+      "unanswered": 0
     }
   }
 }
