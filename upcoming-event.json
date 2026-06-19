@@ -1,49 +1,49 @@
 {
-  "updatedAt": "2026-06-18T09:11:10.588517+00:00",
+  "updatedAt": "2026-06-19T09:26:25.587363+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
   "memberCount": 24,
   "upcomingEvent": {
-    "id": "F2A474B067704796A18778AC0ADBA0C1",
+    "id": "808D7FD99D3C453AAB9F1800490BB595",
     "name": "Training",
-    "startTimestamp": "2026-06-18T17:00:00Z",
-    "endTimestamp": "2026-06-18T18:00:00Z",
+    "startTimestamp": "2026-06-25T17:00:00Z",
+    "endTimestamp": "2026-06-25T18:00:00Z",
     "location": null,
     "type": "training",
     "attending": [
       "Bart Gijsberts",
-      "Bas Quirijns",
       "Chris Willemsen",
       "Lennart Koetzier",
       "Luc de Goeij",
-      "Marc Segers",
-      "Michiel Willemsen",
-      "Thijs Oudkerk",
-      "Thomas Taks",
-      "Wilma Willemsen"
+      "Maarten Bambacht",
+      "Thomas Taks"
     ],
     "declined": [
+      "Bas Quirijns",
       "Bob Leuterrr",
+      "Joost Kirkenier",
+      "Marc Segers",
+      "Victor Peet",
+      "Willem van Rootselaar"
+    ],
+    "unanswered": [
       "Bruno Recordon",
       "Faas Van t Hek",
       "Floris Hage",
       "Jasper Zaar",
       "Jenne",
-      "Joost Kirkenier",
+      "Jeroen Mossinkoff",
       "Joost Sleddering",
-      "Maarten Bambacht",
+      "Michiel Willemsen",
       "Rikkert Verberne",
       "Stijn Terwindt",
-      "Victor Peet",
-      "Willem van Rootselaar"
-    ],
-    "unanswered": [
-      "Jeroen Mossinkoff"
+      "Thijs Oudkerk",
+      "Wilma Willemsen"
     ],
     "counts": {
-      "attending": 10,
-      "declined": 13,
-      "unanswered": 1
+      "attending": 6,
+      "declined": 6,
+      "unanswered": 12
     }
   }
 }
