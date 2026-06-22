@@ -323,22 +323,30 @@ async function handlePastMatchesGet(env) {
     const formatted = pastMatches.map(e => {
       const date = e.startTimestamp.substring(0, 10);
       const heading = String(e.heading || "");
+      const subHeading = String(e.subHeading || "");
+      const description = String(e.description || "");
       const lower = heading.toLowerCase();
       const isHome = lower.includes("thuis");
 
       let opponent = "";
       let goalsFor = null;
       let goalsAgainst = null;
+
+      // --- KNHB enrichment (score + opponent) ---
       if (knhbMatches) {
-        const km = knhbMatches.find(m => (m.datetime || "").substring(0, 10) === date);
+        // Try several date field names the KNHB API may use
+        const km = knhbMatches.find(m => {
+          const dt = m.datetime || m.date || m.start_date || m.match_date || m.startTimestamp || "";
+          return String(dt).substring(0, 10) === date;
+        });
         if (km) {
-          const homeName = km.home_team?.name || "";
-          const awayName = km.away_team?.name || "";
+          const homeName = km.home_team?.name || km.home?.name || km.home_club?.name || "";
+          const awayName = km.away_team?.name || km.away?.name || km.away_club?.name || "";
           const isOurHome = homeName.toLowerCase().includes("groen") ||
             homeName.toLowerCase().includes("geel");
           opponent = isOurHome ? awayName : homeName;
-          const hs = km.home_score ?? km.score?.home ?? null;
-          const as_ = km.away_score ?? km.score?.away ?? null;
+          const hs = km.home_score ?? km.score?.home ?? km.result?.home ?? null;
+          const as_ = km.away_score ?? km.score?.away ?? km.result?.away ?? null;
           if (hs !== null && as_ !== null) {
             goalsFor = isOurHome ? Number(hs) : Number(as_);
             goalsAgainst = isOurHome ? Number(as_) : Number(hs);
@@ -346,22 +354,51 @@ async function handlePastMatchesGet(env) {
         }
       }
 
+      // --- Spond heading/subHeading/description fallback for opponent ---
       if (!opponent) {
-        const afterColon = heading.includes(":") ? heading.split(":").slice(1).join(":").trim() : "";
-        if (afterColon) {
-          const parts = afterColon.split(/\s*[-–]\s*/);
-          if (parts.length >= 2) {
-            const isFirstOurs = parts[0].toLowerCase().includes("groen") ||
-              parts[0].toLowerCase().includes("geel") ||
-              parts[0].toLowerCase().includes("gg ");
-            opponent = isFirstOurs ? parts[1].trim() : parts[0].trim();
+        // Try all text sources in order
+        const sources = [heading, subHeading, description].filter(Boolean);
+        for (const text of sources) {
+          const t = text.toLowerCase();
+
+          // "bij <Club>" — away match description
+          if (t.includes("bij ")) {
+            opponent = text.substring(t.indexOf("bij ") + 4).split(/[\n,]/)[0].trim();
+            break;
           }
-        } else if (lower.includes("bij ")) {
-          opponent = heading.substring(lower.indexOf("bij ") + 4).trim();
-        } else if (lower.includes("vs ")) {
-          opponent = heading.substring(lower.indexOf("vs ") + 3).split(/\s*[-–]\s*/)[0].trim();
+          // "tegen <Club>" — "against <Club>"
+          if (t.includes("tegen ")) {
+            opponent = text.substring(t.indexOf("tegen ") + 6).split(/[\n,–\-]/)[0].trim();
+            break;
+          }
+          // "vs <Club>" or "versus <Club>"
+          const vsM = text.match(/\bversus\s+(.+?)(?:\s*[–\-]|$)/i) ||
+                      text.match(/\bvs\.?\s+(.+?)(?:\s*[–\-]|$)/i);
+          if (vsM) { opponent = vsM[1].trim(); break; }
+
+          // "<GG> – <Opponent>" or "<Opponent> – <GG>"
+          const parts = text.split(/\s*[–\-]\s*/);
+          if (parts.length >= 2) {
+            const isUs = p => /groen|geel|\bgg\b|\bh ?8\b/i.test(p);
+            if (isUs(parts[0])) { opponent = parts[1].trim(); break; }
+            if (isUs(parts[1])) { opponent = parts[0].trim(); break; }
+          }
+
+          // "Wedstrijd: <GG> – <Opponent>" — text after colon
+          if (text.includes(":")) {
+            const afterColon = text.split(":").slice(1).join(":").trim();
+            const colonParts = afterColon.split(/\s*[–\-]\s*/);
+            if (colonParts.length >= 2) {
+              const isUs = p => /groen|geel|\bgg\b|\bh ?8\b/i.test(p);
+              if (isUs(colonParts[0])) { opponent = colonParts[1].trim(); break; }
+              if (isUs(colonParts[1])) { opponent = colonParts[0].trim(); break; }
+            }
+          }
         }
       }
+
+      // Strip any trailing score like "3-2" or "(3-2)" from extracted opponent
+      opponent = opponent.replace(/\s*[\(\[]?\d+\s*[-–]\s*\d+[\)\]]?\s*$/, "").trim();
 
       return { id: e.id, date, heading, isHome, opponent, goalsFor, goalsAgainst };
     });
@@ -607,8 +644,10 @@ async function discoverKnhbTeamId(env) {
     const teams = (await teamsRes.json()).data || [];
 
     const team = teams.find(t => {
-      const n = (t.name || t.short_name || "").toLowerCase().trim().replace(/\s+/g, " ");
-      return n === "heren 8" || n.endsWith(" h8") || n === "h 8";
+      const n = (t.name || t.short_name || t.full_name || "").toLowerCase().trim().replace(/\s+/g, " ");
+      return n === "heren 8" || n === "h8" || n === "h 8" ||
+        n.endsWith(" h8") || n.endsWith(" h 8") || n.endsWith(" heren 8") ||
+        /^h ?8$/.test(n) || (n.includes("heren") && /\b8\b/.test(n));
     });
     if (!team) return null;
 
