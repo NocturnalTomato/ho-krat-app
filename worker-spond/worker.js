@@ -836,18 +836,51 @@ async function handleProbeKnhb(env, url) {
   }
 
   // Step 1 — clubs: use redirect:manual to diagnose the redirect loop
+  // Also try the known club ref from HW (HH11GF7) directly to skip clubs discovery
   let clubs;
+  const KNOWN_CLUB_REF = "HH11GF7"; // from HW team.federation_reference_id
   try {
     const r = await fetch(`${KNHB_MC}/clubs`, {
       redirect: 'manual',
       headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
     });
     if (r.status >= 300 && r.status < 400) {
-      // Redirect — show diagnostic info so we know where it's going
       const location = r.headers.get('Location') || r.headers.get('location') || '';
       const hdrs = {};
       for (const [k, v] of r.headers.entries()) hdrs[k] = v;
-      return json({ step: "clubs_redirect", status: r.status, location, all_headers: hdrs });
+      const redirectBody = await r.text();
+
+      // Clubs discovery is blocked — try the known KNHB club ref directly
+      let directResult = {};
+      try {
+        const r2 = await fetch(`${KNHB_MC}/clubs/${KNOWN_CLUB_REF}/teams`, {
+          headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+        });
+        const body2 = await r2.text();
+        if (r2.ok) {
+          const d = JSON.parse(body2);
+          const teams = d.data || d;
+          directResult = { status: r2.status, count: Array.isArray(teams) ? teams.length : typeof teams, sample: Array.isArray(teams) ? teams.slice(0, 5).map(t => `${t.id}: ${t.name}/${t.short_name}`) : body2.substring(0, 300) };
+          if (Array.isArray(teams)) {
+            const h8 = teams.find(t => {
+              const n = (t.name || t.short_name || "").toLowerCase().trim().replace(/\s+/g, " ");
+              return n === "heren 8" || n === "h8" || n.endsWith(" h8") || (n.includes("heren") && /\b8\b/.test(n));
+            });
+            if (h8) {
+              if (env.LINEUP_KV) await env.LINEUP_KV.put("knhb_team_id", String(h8.id), { expirationTtl: 86400 });
+              const matchResult = await probeKnhbMatches(String(h8.id));
+              directResult.h8 = { id: h8.id, name: h8.name };
+              directResult.matches = matchResult;
+            }
+          }
+        } else {
+          directResult = { status: r2.status, body: body2.substring(0, 300) };
+        }
+      } catch (e) {
+        directResult = { error: e.message };
+      }
+
+      return json({ step: "clubs_redirect", status: r.status, location, redirect_body: redirectBody.substring(0, 300), all_headers: hdrs, direct_club_ref: directResult });
     }
     if (!r.ok) return json({ step: "clubs", status: r.status, body: (await r.text()).substring(0, 500) });
     clubs = ((await r.json()).data || []);
@@ -974,41 +1007,57 @@ async function handleProbeHw(env, url) {
     if (env.LINEUP_KV) await env.LINEUP_KV.put("hw_team_id", String(h8.id), { expirationTtl: 86400 * 30 });
 
     // fetch 3+: matches (multiple attempts)
-    const matchResult = await probeHwMatches(String(h8.id), uuid, token);
+    const matchResult = await probeHwMatches(String(h8.id), uuid, token, h8.recent_poule_id);
     return json({ club: gg.name, team: h8.name, team_id: h8.id, team_obj: h8, ...matchResult });
   } catch (e) {
     return json({ error: e.message });
   }
 }
 
-async function probeHwMatches(teamId, uuid, token) {
+async function probeHwMatches(teamId, uuid, token, pouleId) {
   const results = {};
 
-  // Attempt 1: basic — often returns [] in off-season
+  // 1: basic team matches (often empty in off-season)
   try {
     const data = await hwRequest("/matches/team", { "team_id[]": teamId }, "GET", uuid, token);
     const arr = data.data || data;
-    results.basic = {
-      count: Array.isArray(arr) ? arr.length : "not-array",
-      raw_preview: JSON.stringify(data).substring(0, 400)
-    };
+    results.basic = { count: Array.isArray(arr) ? arr.length : "not-array", raw: JSON.stringify(data).substring(0, 200) };
   } catch (e) { results.basic = { error: e.message }; }
 
-  // Attempt 2: filter by status=played
+  // 2+3: poule-level queries — should return full season matches with scores
+  if (pouleId) {
+    try {
+      const data = await hwRequest(`/poules/${pouleId}`, {}, "GET", uuid, token);
+      const inner = data.data || data;
+      results.poule_detail = { keys: Object.keys(inner), preview: JSON.stringify(data).substring(0, 600) };
+    } catch (e) { results.poule_detail = { error: e.message }; }
+
+    try {
+      const data = await hwRequest(`/poules/${pouleId}/matches`, {}, "GET", uuid, token);
+      const arr = data.data || data;
+      const matches = Array.isArray(arr) ? arr : [];
+      const scored = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
+      results.poule_matches = {
+        total: matches.length,
+        with_score: scored.length,
+        sample: matches.slice(0, 2),
+        scored_sample: scored.slice(0, 2)
+      };
+    } catch (e) { results.poule_matches = { error: e.message }; }
+  }
+
+  // 4: explicit date range for past season (2025-2026)
   try {
-    const data = await hwRequest("/matches/team", { "team_id[]": teamId, "status[]": "played" }, "GET", uuid, token);
+    const data = await hwRequest("/matches/team", {
+      "team_id[]": teamId,
+      "date_from": "2025-08-01",
+      "date_to": new Date().toISOString().substring(0, 10)
+    }, "GET", uuid, token);
     const arr = data.data || data;
-    const matches = Array.isArray(arr) ? arr : [];
-    results.status_played = { count: matches.length, sample: matches.slice(0, 2) };
-  } catch (e) { results.status_played = { error: e.message }; }
+    results.date_range = { count: Array.isArray(arr) ? arr.length : "not-array", raw: JSON.stringify(data).substring(0, 300) };
+  } catch (e) { results.date_range = { error: e.message }; }
 
-  // Attempt 3: GET /teams/{id} — see team fields and any linked competition/season data
-  try {
-    const data = await hwRequest(`/teams/${teamId}`, {}, "GET", uuid, token);
-    results.team_detail = { keys: Object.keys(data), preview: JSON.stringify(data).substring(0, 800) };
-  } catch (e) { results.team_detail = { error: e.message }; }
-
-  return { team_id: teamId, ...results };
+  return { team_id: teamId, poule_id: pouleId, ...results };
 }
 
 // ---------- Clubi probe (1 HTTP fetch) ----------
