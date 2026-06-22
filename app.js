@@ -462,6 +462,45 @@ function renderEvent(data, chances) {
   renderNextEventCard(data, secondaryEvent);
 }
 
+function escapeHtml(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildLocationHtml(event) {
+  const loc = event.knhbLocation;
+
+  if (!loc) {
+    return escapeHtml(event.location || "Nog geen locatie");
+  }
+
+  const displayParts = [loc.name, loc.city].filter(Boolean);
+  const displayName = displayParts.join(", ") || event.location || "Nog geen locatie";
+
+  const queryParts = [loc.name, loc.address, loc.city].filter(Boolean);
+  const query = encodeURIComponent(queryParts.join(", ") || displayName);
+
+  const mapsUrl = `https://maps.google.com/?q=${query}`;
+  const wazeUrl = `https://www.waze.com/ul?q=${query}`;
+
+  return `${escapeHtml(displayName)} &mdash; <a class="loc-link" href="${mapsUrl}" target="_blank" rel="noopener noreferrer">Maps</a> / <a class="loc-link" href="${wazeUrl}" target="_blank" rel="noopener noreferrer">Waze</a>`;
+}
+
+function buildFieldHtml(event) {
+  if (!event.knhbField) return "";
+  return `<br>Veld: ${escapeHtml(String(event.knhbField))}`;
+}
+
+function buildMatchTeamsHtml(event) {
+  const home = event.knhbHomeTeam;
+  const away = event.knhbAwayTeam;
+  if (!home || !away) return "";
+  return `<br>${escapeHtml(home)} &ndash; ${escapeHtml(away)}`;
+}
+
 function renderPrimaryEventCard(data, event, chances) {
   const card = document.getElementById("eventCard");
   if (!card) return;
@@ -479,10 +518,13 @@ function renderPrimaryEventCard(data, event, chances) {
 
   setText("eventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
 
+  const matchTeamsLine = buildMatchTeamsHtml(event);
+  const fieldLine = buildFieldHtml(event);
+
   setHtml("eventMeta", `
     ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
     <br>
-    Locatie: ${event.location || "Nog geen locatie"}
+    Locatie: ${buildLocationHtml(event)}${fieldLine}${matchTeamsLine}
     <br>
     Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
   `);
@@ -519,10 +561,13 @@ function renderNextEventCard(data, event) {
 
   setText("nextEventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
 
+  const nextMatchTeamsLine = buildMatchTeamsHtml(event);
+  const nextFieldLine = buildFieldHtml(event);
+
   setHtml("nextEventMeta", `
     ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
     <br>
-    Locatie: ${event.location || "Nog geen locatie"}
+    Locatie: ${buildLocationHtml(event)}${nextFieldLine}${nextMatchTeamsLine}
   `);
 
   setText("nextEventCountdown", formatCountdown(start));

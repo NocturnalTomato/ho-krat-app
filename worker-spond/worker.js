@@ -1,5 +1,6 @@
 const TARGET_GROUP_NAME = "Groen Geel - H8";
 const API_BASE_URL = "https://api.spond.com/core/v1/";
+const KNHB_MC = "https://publicaties.hockeyweerelt.nl/mc";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -199,6 +200,10 @@ async function fetchSpondData(env) {
     };
   }
 
+  const knhbMatches = await fetchKnhbData(env);
+  if (output.upcomingEvent) output.upcomingEvent = enrichWithKnhb(output.upcomingEvent, knhbMatches);
+  if (output.nextEvent) output.nextEvent = enrichWithKnhb(output.nextEvent, knhbMatches);
+
   return output;
 }
 
@@ -293,5 +298,95 @@ function extractAttendance(event, memberLookup) {
       declined: declined.length,
       unanswered: unanswered.length
     }
+  };
+}
+
+/* ============================================================
+   KNHB MATCH DATA
+============================================================ */
+
+async function fetchKnhbData(env) {
+  try {
+    let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("knhb_team_id") : null;
+    if (!teamId) {
+      teamId = await discoverKnhbTeamId(env);
+      if (!teamId) return null;
+    }
+
+    const res = await fetch(`${KNHB_MC}/teams/${teamId}/matches/upcoming`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}
+
+async function discoverKnhbTeamId(env) {
+  try {
+    const clubsRes = await fetch(`${KNHB_MC}/clubs`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!clubsRes.ok) return null;
+    const clubs = (await clubsRes.json()).data || [];
+
+    const club = clubs.find(c => {
+      const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+      return n.includes("groen") && n.includes("geel");
+    });
+    if (!club) return null;
+
+    const teamsRes = await fetch(`${KNHB_MC}/clubs/${club.id}/teams`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!teamsRes.ok) return null;
+    const teams = (await teamsRes.json()).data || [];
+
+    const team = teams.find(t => {
+      const n = (t.name || t.short_name || "").toLowerCase().trim().replace(/\s+/g, " ");
+      return n === "heren 8" || n.endsWith(" h8") || n === "h 8";
+    });
+    if (!team) return null;
+
+    if (env.LINEUP_KV) {
+      await env.LINEUP_KV.put("knhb_team_id", String(team.id), { expirationTtl: 86400 });
+    }
+    return String(team.id);
+  } catch {
+    return null;
+  }
+}
+
+function enrichWithKnhb(event, knhbMatches) {
+  if (!knhbMatches || !event || event.type !== "wedstrijd") return event;
+
+  const eventDateStr = (event.startTimestamp || "").substring(0, 10);
+  if (!eventDateStr) return event;
+
+  // Match by calendar date — KNHB datetime is NL local, Spond is UTC.
+  // For matches that aren't near midnight, the date string is the same.
+  const match = knhbMatches.find(m => (m.datetime || "").substring(0, 10) === eventDateStr);
+  if (!match) return event;
+
+  // Convert KNHB NL local datetime to UTC for the countdown.
+  // NL: UTC+1 (winter) / UTC+2 (summer, March–October).
+  let knhbStartUtc = event.startTimestamp;
+  if (match.datetime) {
+    const month = parseInt(match.datetime.substring(5, 7), 10);
+    const offsetMs = (month >= 3 && month <= 10 ? 2 : 1) * 3600000;
+    const asUtc = new Date(match.datetime + "Z");
+    knhbStartUtc = new Date(asUtc.getTime() - offsetMs).toISOString();
+  }
+
+  return {
+    ...event,
+    startTimestamp: knhbStartUtc,
+    knhbDateTime: match.datetime || null,
+    knhbLocation: match.location || null,
+    knhbHomeTeam: match.home_team?.name || null,
+    knhbAwayTeam: match.away_team?.name || null,
+    knhbField: match.field || null,
   };
 }

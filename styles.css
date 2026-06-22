@@ -100,6 +100,16 @@ button:active {
   line-height: 1.35;
 }
 
+.loc-link {
+  color: #a1a1a6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.loc-link:hover {
+  color: #ffffff;
+}
+
 .countdown {
   margin-top: 12px;
   font-size: 28px;
