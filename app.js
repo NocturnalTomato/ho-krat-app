@@ -956,6 +956,7 @@ async function loadLineup() {
       formation: data.formation || "4-3-3",
       positions: data.positions || {},
       extraPlayers: Array.isArray(data.extraPlayers) ? data.extraPlayers : [],
+      bench: Array.isArray(data.bench) ? data.bench : [],
       updatedAt: data.updatedAt || null
     };
     lineupExtraPlayers = [...lineupData.extraPlayers];
@@ -964,6 +965,7 @@ async function loadLineup() {
   }
 
   renderLineupField(lineupData, false);
+  renderLineupBench();
   renderLineupMeta();
 }
 
@@ -1065,7 +1067,8 @@ async function lineupPasswordSubmit() {
         password: pw,
         formation: lineupData.formation,
         positions: lineupData.positions,
-        extraPlayers: lineupExtraPlayers
+        extraPlayers: lineupExtraPlayers,
+        bench: lineupData.bench || []
       })
     });
 
@@ -1096,6 +1099,7 @@ function lineupEnableEditMode() {
   lineupUpdateFormationButtons();
   renderLineupField(lineupData, true);
   renderLineupBank();
+  renderLineupBench();
 
   const meta = document.getElementById("lineupMeta");
   if (meta) meta.textContent = "Selecteer een speler in de bank en tik dan een positie op het veld.";
@@ -1113,6 +1117,7 @@ function lineupDisableEditMode() {
   document.getElementById("lineupStatus").style.color = "";
 
   renderLineupField(lineupData, false);
+  renderLineupBench();
   renderLineupMeta();
 }
 
@@ -1142,14 +1147,43 @@ function lineupSetFormation(formation) {
   renderLineupBank();
 }
 
+function lineupFindNextMatch() {
+  const primary = eventData?.upcomingEvent;
+  const secondary = eventData?.nextEvent;
+  if (primary?.type === "wedstrijd") return primary;
+  if (secondary?.type === "wedstrijd") return secondary;
+  return null;
+}
+
 function lineupGetAllPlayers() {
-  const attending = eventData?.upcomingEvent?.attending || [];
-  return [...new Set([...attending, ...lineupExtraPlayers])];
+  const match = lineupFindNextMatch();
+  let players;
+
+  if (match) {
+    const attending = (match.attending || []).map(name => ({ name, status: "attending" }));
+    const unanswered = (match.unanswered || []).map(name => ({ name, status: "unanswered" }));
+    const declined = (match.declined || []).map(name => ({ name, status: "declined" }));
+    players = [...attending, ...unanswered, ...declined];
+  } else {
+    const allMembers = eventData?.members || [];
+    players = allMembers.map(name => ({ name, status: "unknown" }));
+  }
+
+  const seenNames = new Set(players.map(p => p.name));
+  for (const name of lineupExtraPlayers) {
+    if (!seenNames.has(name)) {
+      players.push({ name, status: "extra" });
+      seenNames.add(name);
+    }
+  }
+
+  return players;
 }
 
 function lineupGetAvailablePlayers() {
   const placed = new Set(Object.values(lineupData.positions));
-  return lineupGetAllPlayers().filter(name => !placed.has(name));
+  const benched = new Set(lineupData.bench || []);
+  return lineupGetAllPlayers().filter(p => !placed.has(p.name) && !benched.has(p.name));
 }
 
 function renderLineupBank() {
@@ -1162,20 +1196,89 @@ function renderLineupBank() {
   if (!available.length) {
     const empty = document.createElement("span");
     empty.className = "lineup-bank-empty";
-    empty.textContent = "Alle spelers zijn opgesteld.";
+    empty.textContent = "Alle spelers zijn opgesteld of op de bank.";
     bank.appendChild(empty);
+  } else {
+    for (const { name, status } of available) {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "lineup-bank-chip " + status + (name === lineupSelectedPlayer ? " selected" : "");
+      chip.textContent = lineupChipLabel(name);
+      const statusLabel = status === "attending" ? " ✓" : status === "unanswered" ? " ?" : status === "declined" ? " ✗" : "";
+      chip.title = name + statusLabel;
+      chip.addEventListener("click", () => lineupBankChipClick(name));
+      bank.appendChild(chip);
+    }
+  }
+
+  const toBenchBtn = document.getElementById("lineupToBenchBtn");
+  if (toBenchBtn) {
+    toBenchBtn.style.display = lineupSelectedPlayer ? "inline-block" : "none";
+  }
+}
+
+function renderLineupBench() {
+  const section = document.getElementById("lineupBenchSection");
+  const benchEl = document.getElementById("lineupBench");
+  if (!section || !benchEl) return;
+
+  const bench = lineupData.bench || [];
+
+  if (!lineupEditMode && bench.length === 0) {
+    section.style.display = "none";
     return;
   }
 
-  for (const name of available) {
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "lineup-bank-chip" + (name === lineupSelectedPlayer ? " selected" : "");
-    chip.textContent = name.split(/\s+/)[0];
-    chip.title = name;
-    chip.addEventListener("click", () => lineupBankChipClick(name));
-    bank.appendChild(chip);
+  section.style.display = "block";
+  benchEl.innerHTML = "";
+
+  if (bench.length === 0) {
+    const empty = document.createElement("span");
+    empty.className = "lineup-bank-empty";
+    empty.textContent = "Nog niemand op de bank.";
+    benchEl.appendChild(empty);
+    return;
   }
+
+  const statusMap = Object.fromEntries(lineupGetAllPlayers().map(p => [p.name, p.status]));
+
+  for (const name of bench) {
+    const status = statusMap[name] || "extra";
+    const chip = document.createElement(lineupEditMode ? "button" : "div");
+    if (lineupEditMode) chip.type = "button";
+    chip.className = "lineup-bank-chip " + status;
+    chip.textContent = lineupChipLabel(name);
+    chip.title = name + (lineupEditMode ? " (tik om te verwijderen)" : "");
+    if (lineupEditMode) {
+      chip.addEventListener("click", () => lineupRemoveFromBench(name));
+    }
+    benchEl.appendChild(chip);
+  }
+}
+
+function lineupMoveToBench() {
+  if (!lineupSelectedPlayer) return;
+
+  const bench = lineupData.bench || [];
+  if (!bench.includes(lineupSelectedPlayer)) {
+    bench.push(lineupSelectedPlayer);
+    lineupData.bench = bench;
+  }
+
+  lineupSelectedPlayer = null;
+  renderLineupBank();
+  renderLineupBench();
+
+  const wrap = document.getElementById("lineupFieldWrap");
+  wrap.querySelectorAll(".lineup-chip-slot.empty.editable").forEach(el => {
+    el.classList.remove("target-highlight");
+  });
+}
+
+function lineupRemoveFromBench(name) {
+  lineupData.bench = (lineupData.bench || []).filter(n => n !== name);
+  renderLineupBank();
+  renderLineupBench();
 }
 
 function lineupBankChipClick(playerName) {
@@ -1248,7 +1351,8 @@ async function lineupSave() {
         password: lineupPassword,
         formation: lineupData.formation,
         positions: lineupData.positions,
-        extraPlayers: lineupExtraPlayers
+        extraPlayers: lineupExtraPlayers,
+        bench: lineupData.bench || []
       })
     });
 

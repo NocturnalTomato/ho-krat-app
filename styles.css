@@ -860,6 +860,52 @@ summary {
   font-style: italic;
 }
 
+.lineup-bank-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Status-markeringen in selectie en wisselbank */
+.lineup-bank-chip.attending {
+  border-left: 3px solid #46d369;
+}
+
+.lineup-bank-chip.unanswered {
+  border-left: 3px solid #ffcc00;
+}
+
+.lineup-bank-chip.declined {
+  border-left: 3px solid #ff5c5c;
+  opacity: 0.65;
+}
+
+.lineup-bank-chip.extra {
+  border-style: dashed;
+}
+
+/* Wisselbank-sectie */
+.lineup-bench-section {
+  margin-top: 14px;
+  padding: 14px 0 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.lineup-bench-label {
+  font-size: 12px;
+  font-weight: 950;
+  color: #a1a1a6;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.lineup-bench {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 36px;
+}
+
 /* Opslaanknop */
 .lineup-save-row {
   margin-top: 14px;

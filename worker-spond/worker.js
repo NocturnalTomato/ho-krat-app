@@ -79,20 +79,24 @@ export default {
 };
 
 async function handleLineupGet(env) {
+  const defaultLineup = { formation: "4-3-3", positions: {}, extraPlayers: [], bench: [] };
+
   if (!env.LINEUP_KV) {
-    return json({ formation: "4-3-3", positions: {}, extraPlayers: [] });
+    return json(defaultLineup);
   }
 
   const raw = await env.LINEUP_KV.get("current");
 
   if (!raw) {
-    return json({ formation: "4-3-3", positions: {}, extraPlayers: [] });
+    return json(defaultLineup);
   }
 
   try {
-    return json(JSON.parse(raw));
+    const data = JSON.parse(raw);
+    if (!Array.isArray(data.bench)) data.bench = [];
+    return json(data);
   } catch {
-    return json({ formation: "4-3-3", positions: {}, extraPlayers: [] });
+    return json(defaultLineup);
   }
 }
 
@@ -104,7 +108,7 @@ async function handleLineupPost(request, env) {
     return json({ success: false, error: "Ongeldige JSON" }, { status: 400 });
   }
 
-  const { password, formation, positions, extraPlayers } = body;
+  const { password, formation, positions, extraPlayers, bench } = body;
 
   if (!env.CAPTAIN_PASSWORD) {
     return json({ success: false, error: "Server niet geconfigureerd (geen secret)" }, { status: 500 });
@@ -122,6 +126,7 @@ async function handleLineupPost(request, env) {
     formation: typeof formation === "string" ? formation : "4-3-3",
     positions: positions && typeof positions === "object" && !Array.isArray(positions) ? positions : {},
     extraPlayers: Array.isArray(extraPlayers) ? extraPlayers : [],
+    bench: Array.isArray(bench) ? bench : [],
     updatedAt: new Date().toISOString()
   };
 
@@ -157,25 +162,40 @@ async function fetchSpondData(env) {
     })
     .sort((a, b) => new Date(a.startTimestamp) - new Date(b.startTimestamp));
 
-  const nextEvent = relevantEvents[0] || null;
+  const firstEvent = relevantEvents[0] || null;
+  const secondEvent = relevantEvents[1] || null;
 
   const output = {
     updatedAt: now.toISOString(),
     team: TARGET_GROUP_NAME,
     groupId: targetGroup?.id || null,
     memberCount: Array.isArray(targetGroup?.members) ? targetGroup.members.length : null,
-    upcomingEvent: null
+    members: Object.values(memberLookup).sort(),
+    upcomingEvent: null,
+    nextEvent: null
   };
 
-  if (nextEvent) {
+  if (firstEvent) {
     output.upcomingEvent = {
-      id: nextEvent.id,
-      name: nextEvent.heading,
-      startTimestamp: nextEvent.startTimestamp,
-      endTimestamp: nextEvent.endTimestamp,
-      location: nextEvent.location || null,
-      type: getEventType(nextEvent),
-      ...extractAttendance(nextEvent, memberLookup)
+      id: firstEvent.id,
+      name: firstEvent.heading,
+      startTimestamp: firstEvent.startTimestamp,
+      endTimestamp: firstEvent.endTimestamp,
+      location: firstEvent.location || null,
+      type: getEventType(firstEvent),
+      ...extractAttendance(firstEvent, memberLookup)
+    };
+  }
+
+  if (secondEvent) {
+    output.nextEvent = {
+      id: secondEvent.id,
+      name: secondEvent.heading,
+      startTimestamp: secondEvent.startTimestamp,
+      endTimestamp: secondEvent.endTimestamp,
+      location: secondEvent.location || null,
+      type: getEventType(secondEvent),
+      ...extractAttendance(secondEvent, memberLookup)
     };
   }
 

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HO Krat App</title>
-  <link rel="stylesheet" href="styles.css?v=5" />
-  <script src="app.js?v=1005" defer></script>
+  <link rel="stylesheet" href="styles.css?v=6" />
+  <script src="app.js?v=1006" defer></script>
 </head>
 
 <body>
@@ -231,12 +231,20 @@
         <!-- Spelerchips worden hier dynamisch door JS toegevoegd -->
       </div>
 
+      <div class="lineup-bench-section" id="lineupBenchSection" style="display:none;">
+        <div class="lineup-bench-label">WISSELBANK</div>
+        <div class="lineup-bench" id="lineupBench"></div>
+      </div>
+
       <div class="lineup-meta" id="lineupMeta">Opstelling laden...</div>
 
       <div class="lineup-bank-wrap" id="lineupBankWrap" style="display:none;">
         <div class="lineup-bank-header">
-          <span class="lineup-bank-label">BANK</span>
-          <button class="mini-button" type="button" onclick="lineupAddPlayer()">+ Speler</button>
+          <span class="lineup-bank-label">SELECTIE</span>
+          <div class="lineup-bank-actions">
+            <button class="mini-button" type="button" id="lineupToBenchBtn" style="display:none;" onclick="lineupMoveToBench()">→ Bank</button>
+            <button class="mini-button" type="button" onclick="lineupAddPlayer()">+ Speler</button>
+          </div>
         </div>
         <div class="lineup-bank" id="lineupBank"></div>
       </div>
