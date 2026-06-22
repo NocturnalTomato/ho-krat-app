@@ -1039,14 +1039,14 @@ async function probeHwMatches(teamId, uuid, token, pouleId) {
       });
       const ggTeamId = ggStanding?.team?.id;
 
-      // Filter matches by team name (name is more reliable than ID across systems)
-      const ggMatches = matchesArr.filter(m => {
-        const home = (m.home_team?.name || "").toLowerCase();
-        const away = (m.away_team?.name || "").toLowerCase();
-        return home.includes("groen") || away.includes("groen") ||
-               home.includes("geel") || away.includes("geel");
-      });
-      const scoredGg = ggMatches.filter(m => m.home_score !== null && m.home_score !== undefined);
+      // Filter by team ID (preferred) or name — HW match structure uses m.home/m.away not m.home_team/m.away_team
+      const ggMatches = matchesArr.filter(m =>
+        m.home?.id === ggTeamId || m.away?.id === ggTeamId ||
+        (m.home?.name || "").toLowerCase().includes("groen") ||
+        (m.away?.name || "").toLowerCase().includes("groen")
+      );
+      // HW score is at m.score.home / m.score.away, not m.home_score
+      const scoredGg = ggMatches.filter(m => m.score?.home !== null && m.score?.home !== undefined);
 
       results.poule_detail = {
         competition: inner.competition?.name,
