@@ -52,12 +52,18 @@ export default {
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
+    if (url.pathname === "/stats") {
+      if (request.method === "GET") return handleStatsGet(env);
+      if (request.method === "POST") return handleStatsPost(request, env);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+
     if (url.pathname !== "/" && url.pathname !== "/spond") {
       return json(
         {
           success: false,
           error: "Unknown endpoint",
-          endpoints: ["/", "/spond", "/lineup"]
+          endpoints: ["/", "/spond", "/lineup", "/stats"]
         },
         { status: 404 }
       );
@@ -133,6 +139,67 @@ async function handleLineupPost(request, env) {
 
   await env.LINEUP_KV.put("current", JSON.stringify(data));
 
+  return json({ success: true });
+}
+
+/* ============================================================
+   MATCH STATS
+============================================================ */
+
+async function handleStatsGet(env) {
+  if (!env.LINEUP_KV) return json({ matches: [] });
+  const raw = await env.LINEUP_KV.get("all_match_stats");
+  if (!raw) return json({ matches: [] });
+  try {
+    const matches = JSON.parse(raw);
+    return json({ matches: Array.isArray(matches) ? matches : [] });
+  } catch {
+    return json({ matches: [] });
+  }
+}
+
+async function handleStatsPost(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Ongeldige JSON" }, { status: 400 });
+  }
+
+  const { password, matchStats } = body;
+
+  if (!env.CAPTAIN_PASSWORD) {
+    return json({ success: false, error: "Server niet geconfigureerd" }, { status: 500 });
+  }
+  if (!timingSafeEqual(password, env.CAPTAIN_PASSWORD)) {
+    return json({ success: false, error: "Onjuist wachtwoord" }, { status: 401 });
+  }
+  if (!env.LINEUP_KV) {
+    return json({ success: false, error: "KV niet geconfigureerd" }, { status: 500 });
+  }
+  // null matchStats means a password-only validation check
+  if (!matchStats) {
+    return json({ success: true, validated: true });
+  }
+  if (!matchStats.matchId) {
+    return json({ success: false, error: "matchStats.matchId ontbreekt" }, { status: 400 });
+  }
+
+  const raw = await env.LINEUP_KV.get("all_match_stats");
+  let matches = [];
+  try { matches = raw ? JSON.parse(raw) : []; } catch { matches = []; }
+  if (!Array.isArray(matches)) matches = [];
+
+  const idx = matches.findIndex(m => m.matchId === matchStats.matchId);
+  const entry = { ...matchStats, updatedAt: new Date().toISOString() };
+  if (idx >= 0) {
+    matches[idx] = entry;
+  } else {
+    matches.push(entry);
+  }
+  matches.sort((a, b) => b.date.localeCompare(a.date));
+
+  await env.LINEUP_KV.put("all_match_stats", JSON.stringify(matches));
   return json({ success: true });
 }
 

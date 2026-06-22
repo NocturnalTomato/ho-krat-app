@@ -1039,3 +1039,463 @@ summary {
     font-size: 7.5px;
   }
 }
+
+/* =========================
+   STATISTIEKEN CARD
+========================= */
+
+.stats-season-card {
+  margin-top: 22px;
+  padding: 18px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  text-align: left;
+}
+
+.stats-season-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stats-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.stats-season-select {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.stats-season-select option {
+  background: #1a1a1c;
+  color: white;
+}
+
+.stats-table {
+  display: grid;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.stats-table-head {
+  display: grid;
+  grid-template-columns: 1fr 32px 32px 32px 32px 32px;
+  gap: 2px;
+  padding: 6px 8px;
+  color: #a1a1a6;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  text-align: center;
+}
+
+.stats-table-head span:first-child {
+  text-align: left;
+}
+
+.stats-table-row {
+  display: grid;
+  grid-template-columns: 1fr 32px 32px 32px 32px 32px;
+  gap: 2px;
+  padding: 8px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: center;
+  align-items: center;
+}
+
+.stats-table-row:hover,
+.stats-table-row:active {
+  background: rgba(255, 255, 255, 0.10);
+}
+
+.stats-player-name {
+  text-align: left;
+  font-weight: 900;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats-cell {
+  font-weight: 800;
+  font-size: 13px;
+  color: #d8d8dc;
+}
+
+.stats-matches-count {
+  margin-top: 10px;
+  font-size: 11px;
+  color: #a1a1a6;
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.2px;
+}
+
+/* =========================
+   STATS EDITOR SHEET
+========================= */
+
+.stats-editor-panel {
+  height: min(96vh, 880px) !important;
+}
+
+.stats-editor-body {
+  overflow-y: auto;
+  height: calc(100% - 58px);
+  overscroll-behavior: contain;
+}
+
+.stats-editor-inner {
+  padding: 18px 18px 40px;
+  display: grid;
+  gap: 4px;
+}
+
+.stats-field-section {
+  padding: 14px 0 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.stats-field-section:last-of-type {
+  border-bottom: none;
+}
+
+.stats-field-label {
+  font-size: 11px;
+  font-weight: 950;
+  color: #a1a1a6;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.stats-match-select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+}
+
+.stats-match-select option {
+  background: #1a1a1c;
+  color: white;
+}
+
+.stats-date-input,
+.stats-text-input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+  font-size: 15px;
+  font-weight: 900;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+  margin-bottom: 4px;
+}
+
+.stats-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+.stats-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 4px;
+}
+
+.stats-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(70, 211, 105, 0.18);
+  border: 1px solid rgba(70, 211, 105, 0.35);
+  color: #d8d8dc;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  user-select: none;
+}
+
+.motm-chip {
+  background: rgba(255, 204, 0, 0.18);
+  border-color: rgba(255, 204, 0, 0.4);
+}
+
+.stats-chip-count {
+  font-size: 11px;
+  color: #46d369;
+  font-weight: 950;
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: rgba(70, 211, 105, 0.15);
+}
+
+.stats-chip-remove {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 2px;
+}
+
+.stats-add-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.stats-player-input {
+  flex: 1;
+  padding: 9px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: inherit;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.stats-player-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+  font-weight: 800;
+}
+
+.stats-count-input {
+  width: 52px;
+  padding: 9px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.07);
+  color: white;
+  font-size: 14px;
+  font-weight: 900;
+  font-family: inherit;
+  outline: none;
+  text-align: center;
+  -webkit-appearance: none;
+}
+
+.stats-save-btn {
+  margin-top: 22px;
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #050505;
+  font-size: 16px;
+}
+
+/* =========================
+   EXPANDED STATS SHEET
+========================= */
+
+.stats-expanded-panel {
+  height: min(96vh, 900px) !important;
+}
+
+.stats-expanded-body {
+  overflow-y: auto;
+  height: calc(100% - 58px);
+  overscroll-behavior: contain;
+}
+
+.expanded-stats-body {
+  padding: 18px 18px 50px;
+}
+
+.expanded-season-label {
+  font-size: 11px;
+  font-weight: 950;
+  color: #a1a1a6;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.expanded-big-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.expanded-big-stat {
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 16px;
+  padding: 12px 6px;
+  text-align: center;
+}
+
+.expanded-big-num {
+  font-size: 32px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.expanded-big-label {
+  margin-top: 4px;
+  font-size: 9px;
+  color: #a1a1a6;
+  font-weight: 950;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.expanded-cards-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  justify-content: center;
+}
+
+.expanded-card-badge {
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.expanded-card-badge.yellow {
+  background: rgba(255, 204, 0, 0.15);
+  border: 1px solid rgba(255, 204, 0, 0.3);
+}
+
+.expanded-card-badge.green {
+  background: rgba(70, 211, 105, 0.15);
+  border: 1px solid rgba(70, 211, 105, 0.3);
+}
+
+.expanded-card-badge.own {
+  background: rgba(255, 92, 92, 0.12);
+  border: 1px solid rgba(255, 92, 92, 0.25);
+}
+
+.expanded-section-title {
+  font-size: 11px;
+  font-weight: 950;
+  color: #a1a1a6;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  margin: 18px 0 10px;
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.form-dot {
+  font-size: 22px;
+  cursor: default;
+}
+
+.expanded-chart-wrap {
+  position: relative;
+  height: 160px;
+  margin-bottom: 8px;
+}
+
+.expanded-alltime-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.expanded-alltime-item {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.expanded-alltime-num {
+  font-size: 26px;
+  font-weight: 950;
+}
+
+.expanded-alltime-label {
+  font-size: 10px;
+  color: #a1a1a6;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.expanded-match-log {
+  margin-top: 4px;
+}
+
+.match-log-row {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.match-log-date {
+  color: #a1a1a6;
+  font-weight: 850;
+  font-size: 12px;
+}
+
+.match-log-opp {
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-log-stats {
+  font-size: 12px;
+  color: #46d369;
+  font-weight: 900;
+  white-space: nowrap;
+}

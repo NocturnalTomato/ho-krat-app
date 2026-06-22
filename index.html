@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HO Krat App</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="styles.css?v=7" />
-  <script src="app.js?v=1007" defer></script>
+  <link rel="stylesheet" href="styles.css?v=8" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="app.js?v=1008" defer></script>
 </head>
 
 <body>
@@ -264,6 +265,23 @@
       <div class="lineup-status" id="lineupStatus"></div>
     </div>
 
+    <!-- STATISTIEKEN CARD -->
+    <div class="stats-season-card" id="statsSeasonCard">
+      <div class="stats-season-header">
+        <div>
+          <div class="lineup-kicker">GROEN GEEL - H8</div>
+          <div class="lineup-title">Statistieken</div>
+        </div>
+        <div class="stats-header-actions">
+          <select class="stats-season-select" id="statsSeasonSelect" onchange="statsSeasonChanged()"></select>
+          <button class="mini-button" type="button" onclick="statsOpenEditor()">Aanpassen</button>
+        </div>
+      </div>
+      <div class="stats-season-body" id="statsSeasonBody">
+        <div class="lineup-meta">Statistieken laden...</div>
+      </div>
+    </div>
+
     <div class="version">HO KRAT ORACLE v3.0 - Florine</div>
   </div>
 
@@ -315,6 +333,61 @@
       <div class="popup-buttons" style="margin-top:16px;">
         <button type="button" onclick="lineupAddPlayerCancel()">Annuleer</button>
         <button type="button" onclick="lineupAddPlayerConfirm()">Toevoegen</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS: Wachtwoord-popup (hergebruikt lineup-stijl) -->
+  <div class="popup" id="statsPasswordPopup" style="display:none;">
+    <div class="popup-box">
+      <div class="popup-title">AANVOERDER?</div>
+      <div class="lineup-popup-sub">Voer het wachtwoord in om statistieken te bewerken.</div>
+      <input
+        class="lineup-popup-input"
+        type="password"
+        id="statsPasswordInput"
+        placeholder="Wachtwoord"
+        autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') statsPasswordSubmit()"
+      />
+      <div class="lineup-popup-error" id="statsPasswordError"></div>
+      <div class="popup-buttons" style="margin-top:16px;">
+        <button type="button" onclick="statsPasswordCancel()">Annuleer</button>
+        <button type="button" onclick="statsPasswordSubmit()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATS EDITOR SHEET -->
+  <div class="kratflap-sheet stats-editor-sheet" id="statsEditorSheet" aria-hidden="true">
+    <div class="kratflap-backdrop" onclick="closeStatsEditor()"></div>
+    <div class="kratflap-panel stats-editor-panel">
+      <div class="kratflap-panel-header">
+        <div>
+          <div class="kratflap-kicker">AANVOERDER</div>
+          <div class="kratflap-title">Statistieken aanpassen</div>
+        </div>
+        <button class="kratflap-close" type="button" onclick="closeStatsEditor()">×</button>
+      </div>
+      <div class="stats-editor-body" id="statsEditorBody">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPANDED STATS SHEET -->
+  <div class="kratflap-sheet stats-expanded-sheet" id="statsExpandedSheet" aria-hidden="true">
+    <div class="kratflap-backdrop" onclick="closeExpandedStats()"></div>
+    <div class="kratflap-panel stats-expanded-panel">
+      <div class="kratflap-panel-header">
+        <div>
+          <div class="kratflap-kicker" id="expandedStatsKicker">STATISTIEKEN</div>
+          <div class="kratflap-title" id="expandedStatsTitle">Speler</div>
+        </div>
+        <button class="kratflap-close" type="button" onclick="closeExpandedStats()">×</button>
+      </div>
+      <div class="stats-expanded-body" id="statsExpandedBody">
+        <!-- filled by JS -->
       </div>
     </div>
   </div>
