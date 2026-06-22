@@ -524,6 +524,44 @@ summary {
   margin-bottom: 8px;
 }
 
+.kratflap-highscore {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.kratflap-highscore-label {
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  color: #a1a1a6;
+  margin-bottom: 4px;
+}
+
+.kratflap-highscore-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.kratflap-highscore-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #f5f5f7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kratflap-highscore-value {
+  font-size: 14px;
+  font-weight: 900;
+  color: #ffd60a;
+  flex-shrink: 0;
+}
+
 .kratflap-button {
   width: 100%;
   height: auto;
