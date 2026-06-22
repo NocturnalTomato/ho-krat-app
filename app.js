@@ -1728,8 +1728,9 @@ function renderStatsEditor() {
   const spondOptions = spondMatches.map(m => {
     const val = "spond_" + m.id;
     const d = new Date(m.date + "T12:00:00");
-    const label = d.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" }) +
-      " – " + (m.isHome ? "Thuis" : "Uit") + (m.opponent ? " vs " + m.opponent : "");
+    const dateStr = d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+    const homeAway = m.isHome ? "thuis" : "uit";
+    const label = m.opponent ? `${dateStr} – ${m.opponent} ${homeAway}` : `${dateStr} – ${homeAway}`;
     return `<option value="${escapeHtml(val)}" ${statsEditorMatchId === val ? "selected" : ""}>${escapeHtml(label)}</option>`;
   }).join("");
 
@@ -1831,7 +1832,7 @@ function renderStatsEditor() {
 function statsResolveCurrentMatch() {
   const spondMatches = pastSpondMatches || [];
 
-  if (statsEditorMatchId === "__new__") {
+  if (!statsEditorMatchId || statsEditorMatchId === "__new__") {
     return { date: new Date().toISOString().slice(0, 10), opponent: "", goalsFor: null, goalsAgainst: null, savedMatch: null };
   }
 
@@ -2096,7 +2097,7 @@ async function statsDeleteMatch() {
       if (spondEntry) {
         statsEditorMatchId = "spond_" + spondEntry.id;
       } else {
-        statsEditorMatchId = null;
+        statsEditorMatchId = "__new__";
       }
     }
 

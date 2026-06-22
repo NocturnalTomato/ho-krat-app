@@ -260,113 +260,155 @@ async function handlePastMatchesGet(env) {
     const token = await loginToSpond(env.SPOND_USERNAME, env.SPOND_PASSWORD);
     const now = new Date();
 
-    // Go back 2 full seasons worth of events
     const twoSeasonsBack = new Date(now);
     twoSeasonsBack.setFullYear(twoSeasonsBack.getFullYear() - 2);
-    const minTs = twoSeasonsBack.toISOString();
-    const maxTs = now.toISOString();
+    const minStartTs = twoSeasonsBack.toISOString();
+    const maxEndTs = now.toISOString();
 
-    // Try the explicit past-event query first, fall back to the generic one
+    // Helper: does this event array contain any past non-training events?
+    function hasPastMatches(evts) {
+      if (!Array.isArray(evts)) return false;
+      return evts.some(e => {
+        if (!e.startTimestamp) return false;
+        if (new Date(e.startTimestamp) >= now) return false;
+        return !String(e.heading || "").toLowerCase().includes("training");
+      });
+    }
+
+    // Try strategies in order — stop at the first that returns past match data.
+    // We check actual content, not just whether the call threw, because Spond
+    // may silently ignore unknown query params and return an empty/future-only list.
+    const queries = [
+      `sponds/?max=200&minStartTimestamp=${minStartTs}&maxEndTimestamp=${maxEndTs}`,
+      `sponds/?max=200&maxEndTimestamp=${maxEndTs}`,
+      `sponds/?max=500&scheduled=false`,
+      `sponds/?max=500`,
+    ];
+
     let events = [];
-    try {
-      events = await spondGet(
-        `sponds/?max=200&minEndTimestamp=${minTs}&maxEndTimestamp=${maxTs}&scheduled=false`,
-        token
-      );
-    } catch {
-      // If the API doesn't support those params, fall back and filter manually
+    let debugStrategy = -1;
+    for (let i = 0; i < queries.length; i++) {
       try {
-        events = await spondGet("sponds/?max=200&scheduled=false", token);
-      } catch {
-        events = [];
-      }
+        const result = await spondGet(queries[i], token);
+        if (hasPastMatches(result)) {
+          events = result;
+          debugStrategy = i;
+          break;
+        }
+      } catch { /* try next */ }
     }
 
     if (!Array.isArray(events)) events = [];
 
-    // Keep only past wedstrijden
+    // Filter to past non-training events (wedstrijden, TD, tournaments, etc.)
+    // We exclude "training" by name; everything else that's in the past is fair game.
+    // Also expose the raw heading so the UI can show/use it.
     const pastMatches = events
       .filter(e => {
         if (!e.startTimestamp) return false;
         if (new Date(e.startTimestamp) >= now) return false;
         const name = String(e.heading || "").toLowerCase();
-        return name.includes("thuis") || name.includes("uit");
+        return !name.includes("training");
       })
       .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp))
       .slice(0, 60);
 
     if (!pastMatches.length) {
-      return json({ matches: [] });
+      return json({ matches: [], debug: { strategy: debugStrategy, totalEvents: events.length } });
     }
 
-    // Try to get KNHB played/all matches for opponent enrichment
-    const knhbMatches = await fetchKnhbPlayedMatches(env);
+    // Try app.hockeyweerelt.nl first (needs device auth), then publicaties.hockeyweerelt.nl
+    const hwMatches = await fetchHwPlayedMatches(env);
+    const knhbMatches = hwMatches ? null : await fetchKnhbPlayedMatches(env);
+
+    // Build a date → {opponent, goalsFor, goalsAgainst} lookup from whichever source worked
+    const enrichMap = new Map();
+    if (hwMatches) {
+      for (const m of hwMatches) {
+        if (m.date) enrichMap.set(m.date, m);
+      }
+    } else if (knhbMatches) {
+      for (const km of knhbMatches) {
+        const dt = String(km.datetime || km.date || km.start_date || km.match_date || "").substring(0, 10);
+        if (!dt) continue;
+        const homeName = km.home_team?.name || km.home?.name || "";
+        const awayName = km.away_team?.name || km.away?.name || "";
+        const isOurHome = homeName.toLowerCase().includes("groen") || homeName.toLowerCase().includes("geel");
+        const hs = km.home_score ?? km.score?.home ?? km.result?.home ?? null;
+        const as_ = km.away_score ?? km.score?.away ?? km.result?.away ?? null;
+        enrichMap.set(dt, {
+          opponent: isOurHome ? awayName : homeName,
+          goalsFor: hs !== null && as_ !== null ? (isOurHome ? Number(hs) : Number(as_)) : null,
+          goalsAgainst: hs !== null && as_ !== null ? (isOurHome ? Number(as_) : Number(hs)) : null,
+        });
+      }
+    }
 
     const formatted = pastMatches.map(e => {
       const date = e.startTimestamp.substring(0, 10);
       const heading = String(e.heading || "");
-      const isHome = heading.toLowerCase().includes("thuis");
+      const subHeading = String(e.subHeading || "");
+      const description = String(e.description || "");
+      const lower = heading.toLowerCase();
+      const isHome = lower.includes("thuis");
 
-      // Try KNHB enrichment for opponent name + score
-      let opponent = "";
-      let goalsFor = null;
-      let goalsAgainst = null;
-      if (knhbMatches) {
-        const km = knhbMatches.find(m => {
-          const kDate = (m.datetime || "").substring(0, 10);
-          return kDate === date;
-        });
-        if (km) {
-          const homeName = km.home_team?.name || "";
-          const awayName = km.away_team?.name || "";
-          const isOurHome = homeName.toLowerCase().includes("groen") ||
-            homeName.toLowerCase().includes("geel");
-          opponent = isOurHome ? awayName : homeName;
+      // Prefer API-sourced enrichment
+      const enrich = enrichMap.get(date);
+      let opponent = enrich?.opponent || "";
+      let goalsFor = enrich?.goalsFor ?? null;
+      let goalsAgainst = enrich?.goalsAgainst ?? null;
 
-          // Extract score — KNHB may use home_score/away_score or nested score object
-          const hs = km.home_score ?? km.score?.home ?? null;
-          const as_ = km.away_score ?? km.score?.away ?? null;
-          if (hs !== null && as_ !== null) {
-            goalsFor = isOurHome ? Number(hs) : Number(as_);
-            goalsAgainst = isOurHome ? Number(as_) : Number(hs);
-          }
-        }
-      }
-
-      // If no KNHB match, try extracting from the heading
-      // Headings like "Thuis: GG H8 - Kampong H7" or "Uit bij Zwolle"
+      // --- Spond heading/subHeading/description fallback for opponent ---
       if (!opponent) {
-        const lower = heading.toLowerCase();
-        const afterColon = heading.includes(":") ? heading.split(":").slice(1).join(":").trim() : "";
-        if (afterColon) {
-          // "GG H8 - Opponent" or "Opponent - GG H8"
-          const parts = afterColon.split(/\s*[-–]\s*/);
-          if (parts.length >= 2) {
-            const isFirstOurs = parts[0].toLowerCase().includes("groen") ||
-              parts[0].toLowerCase().includes("geel") ||
-              parts[0].toLowerCase().includes("gg ");
-            opponent = isFirstOurs ? parts[1].trim() : parts[0].trim();
+        // Try all text sources in order
+        const sources = [heading, subHeading, description].filter(Boolean);
+        for (const text of sources) {
+          const t = text.toLowerCase();
+
+          // "bij <Club>" — away match description
+          if (t.includes("bij ")) {
+            opponent = text.substring(t.indexOf("bij ") + 4).split(/[\n,]/)[0].trim();
+            break;
           }
-        } else if (lower.includes("bij ")) {
-          opponent = heading.substring(lower.indexOf("bij ") + 4).trim();
-        } else if (lower.includes("vs ")) {
-          const vsParts = heading.substring(lower.indexOf("vs ") + 3).split(/\s*[-–]\s*/);
-          opponent = vsParts[0].trim();
+          // "tegen <Club>" — "against <Club>"
+          if (t.includes("tegen ")) {
+            opponent = text.substring(t.indexOf("tegen ") + 6).split(/[\n,–\-]/)[0].trim();
+            break;
+          }
+          // "vs <Club>" or "versus <Club>"
+          const vsM = text.match(/\bversus\s+(.+?)(?:\s*[–\-]|$)/i) ||
+                      text.match(/\bvs\.?\s+(.+?)(?:\s*[–\-]|$)/i);
+          if (vsM) { opponent = vsM[1].trim(); break; }
+
+          // "<GG> – <Opponent>" or "<Opponent> – <GG>"
+          const parts = text.split(/\s*[–\-]\s*/);
+          if (parts.length >= 2) {
+            const isUs = p => /groen|geel|\bgg\b|\bh ?8\b/i.test(p);
+            if (isUs(parts[0])) { opponent = parts[1].trim(); break; }
+            if (isUs(parts[1])) { opponent = parts[0].trim(); break; }
+          }
+
+          // "Wedstrijd: <GG> – <Opponent>" — text after colon
+          if (text.includes(":")) {
+            const afterColon = text.split(":").slice(1).join(":").trim();
+            const colonParts = afterColon.split(/\s*[–\-]\s*/);
+            if (colonParts.length >= 2) {
+              const isUs = p => /groen|geel|\bgg\b|\bh ?8\b/i.test(p);
+              if (isUs(colonParts[0])) { opponent = colonParts[1].trim(); break; }
+              if (isUs(colonParts[1])) { opponent = colonParts[0].trim(); break; }
+            }
+          }
         }
       }
 
-      return {
-        id: e.id,
-        date,
-        heading,
-        isHome,
-        opponent,
-        goalsFor,
-        goalsAgainst
-      };
+      // Strip any trailing score like "3-2" or "(3-2)" from extracted opponent
+      opponent = opponent.replace(/\s*[\(\[]?\d+\s*[-–]\s*\d+[\)\]]?\s*$/, "").trim();
+
+      return { id: e.id, date, heading, isHome, opponent, goalsFor, goalsAgainst };
     });
 
-    return json({ matches: formatted });
+    const enrichSource = hwMatches ? "hw" : (knhbMatches ? "knhb" : "none");
+    return json({ matches: formatted, debug: { strategy: debugStrategy, totalEvents: events.length, enrichSource } });
   } catch (err) {
     return json({ matches: [], error: err.message });
   }
@@ -607,8 +649,10 @@ async function discoverKnhbTeamId(env) {
     const teams = (await teamsRes.json()).data || [];
 
     const team = teams.find(t => {
-      const n = (t.name || t.short_name || "").toLowerCase().trim().replace(/\s+/g, " ");
-      return n === "heren 8" || n.endsWith(" h8") || n === "h 8";
+      const n = (t.name || t.short_name || t.full_name || "").toLowerCase().trim().replace(/\s+/g, " ");
+      return n === "heren 8" || n === "h8" || n === "h 8" ||
+        n.endsWith(" h8") || n.endsWith(" h 8") || n.endsWith(" heren 8") ||
+        /^h ?8$/.test(n) || (n.includes("heren") && /\b8\b/.test(n));
     });
     if (!team) return null;
 
@@ -616,6 +660,141 @@ async function discoverKnhbTeamId(env) {
       await env.LINEUP_KV.put("knhb_team_id", String(team.id), { expirationTtl: 86400 });
     }
     return String(team.id);
+  } catch {
+    return null;
+  }
+}
+
+/* ============================================================
+   app.hockeyweerelt.nl API  (used by hockey-team-tracker)
+   Requires device registration (UUID + token) and SHA-1 signed
+   request headers.
+============================================================ */
+
+const HW_BASE = "https://app.hockeyweerelt.nl";
+
+async function hwSha1(message) {
+  const data = new TextEncoder().encode(message);
+  const buf = await crypto.subtle.digest("SHA-1", data);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function hwSignature(urlPath, params, timestamp, uuid) {
+  // Algorithm from joosthoi1/HockeyWeerelt – strip non-alphanum/dash/slash chars,
+  // concat params WITHOUT separator, append reversed UUID.
+  const cleanPath = urlPath.replace(/[^a-zA-Z0-9\-\/]+/g, "");
+  const cleanedParams = Object.entries(params)
+    .filter(([k]) => k)
+    .map(([k, v]) => `${k.replace(/[^a-zA-Z0-9\-\/=]+/g, "")}=${String(v).replace(/[^a-zA-Z0-9\-\/=]+/g, "")}`)
+    .join("");
+  const reversedUuid = [...String(uuid)].reverse().join("");
+  return hwSha1(`${timestamp}${cleanPath}${cleanedParams}${reversedUuid}`);
+}
+
+async function hwRequest(path, params = {}, method = "GET", uuid, token) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const sig = await hwSignature(path, params, timestamp, uuid || "");
+  // Params always go into the URL query string (matches aiohttp params= behaviour)
+  const url = new URL(HW_BASE + path);
+  for (const [k, v] of Object.entries(params)) url.searchParams.append(k, v);
+  const headers = {
+    "Accept": "application/json",
+    "X-HAPI-Signature": sig,
+    "X-HAPI-Timestamp": String(timestamp),
+  };
+  if (token) headers["X-HAPI-Authorization"] = token;
+  const res = await fetch(url.toString(), { method, headers });
+  if (!res.ok) throw new Error(`HW ${res.status} ${path}`);
+  return await res.json();
+}
+
+async function hwGetOrCreateDevice(env) {
+  if (env.LINEUP_KV) {
+    const uuid = await env.LINEUP_KV.get("hw_uuid");
+    const token = await env.LINEUP_KV.get("hw_token");
+    if (uuid && token) return { uuid, token };
+  }
+  const uuid = crypto.randomUUID();
+  const r = await hwRequest("/device/register", { os: "Web", uuid }, "POST", uuid, null);
+  const token = r.token || r.data?.token;
+  if (!token) throw new Error("HW device registration failed");
+  if (env.LINEUP_KV) {
+    await env.LINEUP_KV.put("hw_uuid", uuid, { expirationTtl: 86400 * 90 });
+    await env.LINEUP_KV.put("hw_token", token, { expirationTtl: 86400 * 90 });
+  }
+  return { uuid, token };
+}
+
+async function hwFindTeamId(env, uuid, token) {
+  if (env.LINEUP_KV) {
+    const stored = await env.LINEUP_KV.get("hw_team_id");
+    if (stored) return stored;
+  }
+
+  // GET /clubs → find Groen Geel by name
+  const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
+  const clubs = clubsData.data || clubsData || [];
+  const club = Array.isArray(clubs) && clubs.find(c => {
+    const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+    return n.includes("groen") && n.includes("geel");
+  });
+  if (!club) return null;
+
+  const clubRef = club.federation_reference_id || club.id;
+
+  // GET /clubs/{ref} → teams nested in response
+  const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+  const teamList = clubData.data?.teams || clubData.teams ||
+    (Array.isArray(clubData.data) ? clubData.data : null) || [];
+
+  const team = Array.isArray(teamList) && teamList.find(t => {
+    const short = (t.short_name || "").toLowerCase().trim();
+    const full = (t.name || t.full_name || "").toLowerCase();
+    const type = (t.hockey_type || "").toLowerCase();
+    return short === "h8" || short === "8" ||
+      full.includes("heren 8") || full === "h8" ||
+      (type.includes("heren") && /\b8\b/.test(short + " " + full));
+  });
+  if (!team) return null;
+
+  const teamId = String(team.id);
+  if (env.LINEUP_KV) {
+    await env.LINEUP_KV.put("hw_team_id", teamId, { expirationTtl: 86400 * 30 });
+  }
+  return teamId;
+}
+
+async function fetchHwPlayedMatches(env) {
+  try {
+    const { uuid, token } = await hwGetOrCreateDevice(env);
+    const teamId = await hwFindTeamId(env, uuid, token);
+    if (!teamId) return null;
+
+    // GET /matches/team?team_id[]={teamId}
+    const data = await hwRequest("/matches/team", { "team_id[]": teamId }, "GET", uuid, token);
+    const matches = data.data || data;
+    if (!Array.isArray(matches) || !matches.length) return null;
+
+    const now = new Date();
+    const teamIdInt = parseInt(teamId, 10);
+
+    return matches
+      .filter(m => {
+        const d = m.date || m.start_date || m.datetime || "";
+        return d && new Date(d) < now && m.status !== "scheduled" && m.status !== "announced";
+      })
+      .map(m => {
+        const date = (m.date || m.start_date || m.datetime || "").substring(0, 10);
+        const isOurHome = (m.home?.id ?? m.home_team?.id) === teamIdInt;
+        const homeName = m.home?.name || m.home?.team_name || m.home_team?.name || "";
+        const awayName = m.away?.name || m.away?.team_name || m.away_team?.name || "";
+        const opponent = isOurHome ? awayName : homeName;
+        const hs = m.home_score ?? m.score?.home ?? m.home?.score ?? null;
+        const as_ = m.away_score ?? m.score?.away ?? m.away?.score ?? null;
+        const goalsFor = hs !== null && as_ !== null ? (isOurHome ? Number(hs) : Number(as_)) : null;
+        const goalsAgainst = hs !== null && as_ !== null ? (isOurHome ? Number(as_) : Number(hs)) : null;
+        return { date, opponent, goalsFor, goalsAgainst };
+      });
   } catch {
     return null;
   }
