@@ -16,6 +16,7 @@ const SPOND_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/";
 const POLL_TIMEOUT_MS = 60000;
 const POLL_INTERVAL_MS = 3000;
 const KRATFLAP_UNLOCK_KEY = "hokrat_kratflap_unlocked";
+const KRATFLAP_API_URL = "https://ho-kratflap-api.lucdegoeij.workers.dev/scores";
 
 async function init() {
   restoreKratflapUnlock();
@@ -711,6 +712,23 @@ function showKratflapTeaser() {
   if (!teaser) return;
 
   teaser.style.display = "block";
+  loadKratflapHighscore();
+}
+
+async function loadKratflapHighscore() {
+  try {
+    const res = await fetch(KRATFLAP_API_URL);
+    if (!res.ok) return;
+    const data = await res.json();
+    const top = data.weekTop && data.weekTop[0];
+    if (!top) return;
+
+    document.getElementById("kratflapHighscoreName").textContent = top.name;
+    document.getElementById("kratflapHighscoreValue").textContent = top.score;
+    document.getElementById("kratflapHighscore").style.display = "block";
+  } catch {
+    // silently ignore network errors
+  }
 }
 
 function openKratflap() {
