@@ -39,6 +39,18 @@ jobs:
           echo "=== 3/3  Clubi doc ==="
           curl -sf "$BASE/probe/clubi?path=/doc.html" | python3 -m json.tool || echo "clubi failed"
 
+          echo "=== 4/4  Standings (poulestand) ==="
+          STANDINGS=$(curl -sf "$BASE/standings" || echo '{"error":"curl failed"}')
+          echo "$STANDINGS" | python3 -m json.tool
+          echo "Top 3 teams:"
+          echo "$STANDINGS" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+st = d.get('standings', [])
+for s in st[:3]:
+    print(f\"  #{s.get('rank','?')} {s.get('team_name','?')} - GS:{s.get('played','?')} GW:{s.get('won','?')} GL:{s.get('drawn','?')} VL:{s.get('lost','?')} PT:{s.get('points','?')}\")
+" 2>/dev/null || echo "parse failed"
+
       - name: Run scraper
         run: node scrape.js
 
