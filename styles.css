@@ -1313,6 +1313,20 @@ summary {
   -webkit-appearance: none;
 }
 
+.stats-saved-indicator {
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: #46d369;
+  letter-spacing: 0.2px;
+}
+
+.stats-meta-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
 .stats-save-btn {
   margin-top: 22px;
   width: 100%;

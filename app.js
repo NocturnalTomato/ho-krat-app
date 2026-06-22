@@ -948,13 +948,15 @@ function formatDateTime(date) {
 ========================= */
 
 const STATS_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/stats";
+const PAST_MATCHES_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/past-matches";
 const LINEUP_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/lineup";
 
 let statsData = { matches: [] };
 let statsPassword = null;
-let statsEditorMatchId = null; // which match is being edited
-let statsViewingSeason = null; // which season year is shown
-let expandedStatsCharts = [];  // chart instances to destroy on close
+let statsEditorMatchId = null;
+let statsViewingSeason = null;
+let expandedStatsCharts = [];
+let pastSpondMatches = null; // cached from /past-matches
 
 let lineupData = { formation: "4-3-3", positions: {}, extraPlayers: [] };
 let lineupEditMode = false;
@@ -1642,17 +1644,44 @@ async function statsPasswordSubmit() {
 
 /* --- Stats editor sheet --- */
 
-function openStatsEditorSheet() {
+async function openStatsEditorSheet() {
   const sheet = document.getElementById("statsEditorSheet");
   if (!sheet) return;
-
-  // Default: most recent match or new
-  statsEditorMatchId = statsData.matches.length > 0 ? statsData.matches[0].matchId : "__new__";
-  renderStatsEditor();
 
   sheet.classList.add("show");
   sheet.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+
+  // Show loading state while we fetch past matches from Spond
+  const body = document.getElementById("statsEditorBody");
+  if (body) {
+    body.innerHTML = `<div class="stats-editor-inner" style="text-align:center;padding:32px 0;">
+      <div class="lineup-meta">Wedstrijden ophalen uit Spond...</div>
+    </div>`;
+  }
+
+  if (!pastSpondMatches) {
+    try {
+      const res = await fetch(PAST_MATCHES_URL, { cache: "no-store" });
+      const data = await res.json();
+      pastSpondMatches = Array.isArray(data.matches) ? data.matches : [];
+    } catch {
+      pastSpondMatches = [];
+    }
+  }
+
+  // Default selection: most recent Spond match, or most recent saved match, or new
+  if (!statsEditorMatchId) {
+    if (pastSpondMatches.length > 0) {
+      statsEditorMatchId = "spond_" + pastSpondMatches[0].id;
+    } else if (statsData.matches.length > 0) {
+      statsEditorMatchId = statsData.matches[0].matchId;
+    } else {
+      statsEditorMatchId = "__new__";
+    }
+  }
+
+  renderStatsEditor();
 }
 
 function closeStatsEditor() {
@@ -1661,6 +1690,7 @@ function closeStatsEditor() {
   sheet.classList.remove("show");
   sheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  statsEditorMatchId = null; // reset so next open defaults to most recent
 }
 
 function statsGetAllPlayers() {
@@ -1687,34 +1717,48 @@ function renderStatsEditor() {
   const body = document.getElementById("statsEditorBody");
   if (!body) return;
 
-  const sortedMatches = [...statsData.matches].sort((a, b) => b.date.localeCompare(a.date));
   const allPlayers = statsGetAllPlayers();
+  const spondMatches = pastSpondMatches || [];
 
-  const currentMatch = statsEditorMatchId === "__new__"
-    ? { matchId: "__new__", date: new Date().toISOString().slice(0, 10), opponent: "", motm: "", goals: [], ownGoals: [], assists: [], geleKaart: [], groeneKaart: [] }
-    : (statsData.matches.find(m => m.matchId === statsEditorMatchId) || { matchId: "__new__", date: new Date().toISOString().slice(0, 10), opponent: "", motm: "", goals: [], ownGoals: [], assists: [], geleKaart: [], groeneKaart: [] });
+  // Resolve current match data from either Spond source or saved stats
+  const { date: resolvedDate, opponent: resolvedOpponent, savedMatch } = statsResolveCurrentMatch();
 
-  const matchOptions = sortedMatches.map(m =>
-    `<option value="${escapeHtml(m.matchId)}" ${m.matchId === statsEditorMatchId ? "selected" : ""}>
-      ${escapeHtml(m.date)} – ${escapeHtml(m.opponent || "Onbekend")}
+  // Build <option> groups for the match selector
+  // Group 1: Spond matches (from /past-matches)
+  const spondOptions = spondMatches.map(m => {
+    const val = "spond_" + m.id;
+    const d = new Date(m.date + "T12:00:00");
+    const label = d.toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" }) +
+      " – " + (m.isHome ? "Thuis" : "Uit") + (m.opponent ? " vs " + m.opponent : "");
+    return `<option value="${escapeHtml(val)}" ${statsEditorMatchId === val ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  }).join("");
+
+  // Group 2: saved stats matches not in Spond list (manually added)
+  const spondDates = new Set(spondMatches.map(m => m.date));
+  const savedOnlyMatches = statsData.matches.filter(m => !spondDates.has(m.date));
+  const savedOptions = savedOnlyMatches.map(m =>
+    `<option value="${escapeHtml(m.matchId)}" ${statsEditorMatchId === m.matchId ? "selected" : ""}>
+      ${escapeHtml(m.date)} – ${escapeHtml(m.opponent || "Handmatig")}
     </option>`
   ).join("");
 
   const playerDatalist = `<datalist id="statsPlayerList">${allPlayers.map(n => `<option value="${escapeHtml(n)}">`).join("")}</datalist>`;
 
-  function playerChipsHtml(label, fieldId, currentValues, multi = false) {
-    const valStr = Array.isArray(currentValues) ? JSON.stringify(currentValues) : JSON.stringify([]);
+  function playerChipsHtml(label, fieldId, multi = false) {
     return `
       <div class="stats-field-section">
         <div class="stats-field-label">${label}</div>
         <div class="stats-chips-wrap" id="chips_${fieldId}"></div>
         <div class="stats-add-row">
-          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler toevoegen…" id="input_${fieldId}" autocomplete="off" />
+          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler toevoegen…" id="input_${fieldId}" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();statsAddChip('${fieldId}',${multi})}" />
           ${multi ? `<input class="stats-count-input" type="number" min="1" max="20" value="1" id="count_${fieldId}" />` : ""}
           <button class="mini-button" type="button" onclick="statsAddChip('${fieldId}', ${multi})">+</button>
         </div>
       </div>`;
   }
+
+  const hasSaved = !!savedMatch;
 
   body.innerHTML = `
     ${playerDatalist}
@@ -1722,50 +1766,89 @@ function renderStatsEditor() {
       <div class="stats-field-section">
         <div class="stats-field-label">Wedstrijd</div>
         <select class="stats-match-select" id="statsMatchSelect" onchange="statsSelectMatch(this.value)">
-          <option value="__new__" ${statsEditorMatchId === "__new__" ? "selected" : ""}>+ Nieuwe wedstrijd</option>
-          ${matchOptions}
+          <option value="__new__" ${statsEditorMatchId === "__new__" ? "selected" : ""}>+ Handmatig / nieuw</option>
+          ${spondOptions ? `<optgroup label="Wedstrijden uit Spond">${spondOptions}</optgroup>` : ""}
+          ${savedOptions ? `<optgroup label="Eerder opgeslagen">${savedOptions}</optgroup>` : ""}
         </select>
+        ${hasSaved ? `<div class="stats-saved-indicator">✓ Stats al opgeslagen voor deze wedstrijd</div>` : ""}
       </div>
 
       <div class="stats-field-section" id="statsMatchMeta">
-        <div class="stats-field-label">Datum</div>
-        <input class="lineup-popup-input stats-date-input" type="date" id="statsMatchDate" value="${escapeHtml(currentMatch.date)}" />
-        <div class="stats-field-label" style="margin-top:10px;">Tegenstander</div>
-        <input class="lineup-popup-input stats-text-input" type="text" id="statsMatchOpponent" value="${escapeHtml(currentMatch.opponent || "")}" placeholder="bv. Kampong Heren 7" autocomplete="off" />
+        <div class="stats-meta-grid">
+          <div>
+            <div class="stats-field-label">Datum</div>
+            <input class="lineup-popup-input stats-date-input" type="date" id="statsMatchDate" value="${escapeHtml(resolvedDate)}" />
+          </div>
+          <div>
+            <div class="stats-field-label">Tegenstander</div>
+            <input class="lineup-popup-input stats-text-input" type="text" id="statsMatchOpponent" value="${escapeHtml(resolvedOpponent)}" placeholder="bv. Kampong Heren 7" autocomplete="off" />
+          </div>
+        </div>
       </div>
 
       <div class="stats-field-section">
         <div class="stats-field-label">Man of the Match ⭐</div>
         <div class="stats-chips-wrap" id="chips_motm"></div>
         <div class="stats-add-row">
-          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler…" id="input_motm" autocomplete="off" />
+          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler…" id="input_motm" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();statsSetMotm()}" />
           <button class="mini-button" type="button" onclick="statsSetMotm()">Stel in</button>
         </div>
       </div>
 
-      ${playerChipsHtml("Doelpunten ⚽", "goals", currentMatch.goals, true)}
-      ${playerChipsHtml("Eigen doelpunten 😬", "ownGoals", currentMatch.ownGoals, true)}
-      ${playerChipsHtml("Assists 🎯", "assists", currentMatch.assists, true)}
-      ${playerChipsHtml("Gele kaart 🟨", "geleKaart", currentMatch.geleKaart, false)}
-      ${playerChipsHtml("Groene kaart 🟩", "groeneKaart", currentMatch.groeneKaart, false)}
+      ${playerChipsHtml("Doelpunten ⚽", "goals", true)}
+      ${playerChipsHtml("Eigen doelpunten 😬", "ownGoals", true)}
+      ${playerChipsHtml("Assists 🎯", "assists", true)}
+      ${playerChipsHtml("Gele kaart 🟨", "geleKaart", false)}
+      ${playerChipsHtml("Groene kaart 🟩", "groeneKaart", false)}
 
       <button class="lineup-save-btn stats-save-btn" type="button" onclick="statsSaveMatch()">Opslaan</button>
       <div class="lineup-status" id="statsEditorStatus"></div>
     </div>
   `;
 
-  // Populate chips from current match data
-  statsRenderMotmChip(currentMatch.motm);
-  statsRenderCountChips("goals", currentMatch.goals || []);
-  statsRenderCountChips("ownGoals", currentMatch.ownGoals || []);
-  statsRenderCountChips("assists", currentMatch.assists || []);
-  statsRenderNameChips("geleKaart", currentMatch.geleKaart || []);
-  statsRenderNameChips("groeneKaart", currentMatch.groeneKaart || []);
+  // Populate chips from saved match data if it exists
+  statsRenderMotmChip(savedMatch?.motm || "");
+  statsRenderCountChips("goals", savedMatch?.goals || []);
+  statsRenderCountChips("ownGoals", savedMatch?.ownGoals || []);
+  statsRenderCountChips("assists", savedMatch?.assists || []);
+  statsRenderNameChips("geleKaart", savedMatch?.geleKaart || []);
+  statsRenderNameChips("groeneKaart", savedMatch?.groeneKaart || []);
+}
+
+function statsResolveCurrentMatch() {
+  const spondMatches = pastSpondMatches || [];
+
+  if (statsEditorMatchId === "__new__") {
+    return { date: new Date().toISOString().slice(0, 10), opponent: "", savedMatch: null };
+  }
+
+  if (statsEditorMatchId.startsWith("spond_")) {
+    const spondId = statsEditorMatchId.slice(6);
+    const spond = spondMatches.find(m => m.id === spondId);
+    const savedMatch = spond ? statsData.matches.find(m => m.date === spond.date) : null;
+    return {
+      date: spond?.date || new Date().toISOString().slice(0, 10),
+      opponent: savedMatch?.opponent || spond?.opponent || "",
+      savedMatch
+    };
+  }
+
+  // Saved match by date key
+  const savedMatch = statsData.matches.find(m => m.matchId === statsEditorMatchId);
+  return {
+    date: savedMatch?.date || new Date().toISOString().slice(0, 10),
+    opponent: savedMatch?.opponent || "",
+    savedMatch
+  };
 }
 
 function statsSelectMatch(val) {
   statsEditorMatchId = val;
   renderStatsEditor();
+  // Scroll editor to top so stat fields are visible
+  const body = document.getElementById("statsEditorBody");
+  if (body) body.scrollTop = 0;
 }
 
 function statsRenderMotmChip(name) {
@@ -1898,12 +1981,20 @@ function statsReadMotm() {
 
 async function statsSaveMatch() {
   const statusEl = document.getElementById("statsEditorStatus");
-  const date = document.getElementById("statsMatchDate")?.value;
-  const opponent = document.getElementById("statsMatchOpponent")?.value?.trim() || "";
+  const dateInput = document.getElementById("statsMatchDate");
+  const opponentInput = document.getElementById("statsMatchOpponent");
+  const date = dateInput?.value;
+  const opponent = opponentInput?.value?.trim() || "";
 
   if (!date) { statusEl.textContent = "Kies een datum."; statusEl.style.color = "#ff5c5c"; return; }
 
-  const matchId = date; // use date as ID
+  // Determine spondId if this is a Spond-sourced match
+  let spondId = null;
+  if (statsEditorMatchId && statsEditorMatchId.startsWith("spond_")) {
+    spondId = statsEditorMatchId.slice(6);
+  }
+
+  const matchId = date; // always use date as stable ID
   const seasonYear = getSeasonYear(date);
   const motm = statsReadMotm();
   const goals = statsReadChipsCount("goals");
@@ -1912,7 +2003,7 @@ async function statsSaveMatch() {
   const geleKaart = statsReadChipsNames("geleKaart");
   const groeneKaart = statsReadChipsNames("groeneKaart");
 
-  const matchStats = { matchId, date, opponent, seasonYear, motm, goals, ownGoals, assists, geleKaart, groeneKaart };
+  const matchStats = { matchId, date, opponent, seasonYear, spondId, motm, goals, ownGoals, assists, geleKaart, groeneKaart };
 
   statusEl.textContent = "Opslaan…";
   statusEl.style.color = "#ffcc00";
@@ -1927,7 +2018,7 @@ async function statsSaveMatch() {
     const result = await res.json();
     if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
 
-    statusEl.textContent = "Opgeslagen!";
+    statusEl.textContent = "Opgeslagen! ✓";
     statusEl.style.color = "#46d369";
 
     // Update local data
@@ -1936,11 +2027,16 @@ async function statsSaveMatch() {
     if (idx >= 0) statsData.matches[idx] = entry; else statsData.matches.push(entry);
     statsData.matches.sort((a, b) => b.date.localeCompare(a.date));
 
+    // Switch selector to saved-match view so "stats al opgeslagen" indicator shows
     statsEditorMatchId = matchId;
     statsViewingSeason = seasonYear;
     renderStatsCard();
+    renderStatsEditor();
 
-    setTimeout(() => { statusEl.textContent = ""; statusEl.style.color = ""; }, 2500);
+    setTimeout(() => {
+      const s = document.getElementById("statsEditorStatus");
+      if (s) { s.textContent = ""; s.style.color = ""; }
+    }, 3000);
   } catch (err) {
     statusEl.textContent = "Fout: " + err.message;
     statusEl.style.color = "#ff5c5c";

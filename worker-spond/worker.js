@@ -58,12 +58,17 @@ export default {
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
+    if (url.pathname === "/past-matches") {
+      if (request.method === "GET") return handlePastMatchesGet(env);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+
     if (url.pathname !== "/" && url.pathname !== "/spond") {
       return json(
         {
           success: false,
           error: "Unknown endpoint",
-          endpoints: ["/", "/spond", "/lineup", "/stats"]
+          endpoints: ["/", "/spond", "/lineup", "/stats", "/past-matches"]
         },
         { status: 404 }
       );
@@ -201,6 +206,144 @@ async function handleStatsPost(request, env) {
 
   await env.LINEUP_KV.put("all_match_stats", JSON.stringify(matches));
   return json({ success: true });
+}
+
+/* ============================================================
+   PAST MATCHES (for stats editor dropdown)
+============================================================ */
+
+async function handlePastMatchesGet(env) {
+  if (!env.SPOND_USERNAME || !env.SPOND_PASSWORD) {
+    return json({ matches: [], error: "Spond niet geconfigureerd" });
+  }
+
+  try {
+    const token = await loginToSpond(env.SPOND_USERNAME, env.SPOND_PASSWORD);
+    const now = new Date();
+
+    // Go back 2 full seasons worth of events
+    const twoSeasonsBack = new Date(now);
+    twoSeasonsBack.setFullYear(twoSeasonsBack.getFullYear() - 2);
+    const minTs = twoSeasonsBack.toISOString();
+    const maxTs = now.toISOString();
+
+    // Try the explicit past-event query first, fall back to the generic one
+    let events = [];
+    try {
+      events = await spondGet(
+        `sponds/?max=200&minEndTimestamp=${minTs}&maxEndTimestamp=${maxTs}&scheduled=false`,
+        token
+      );
+    } catch {
+      // If the API doesn't support those params, fall back and filter manually
+      try {
+        events = await spondGet("sponds/?max=200&scheduled=false", token);
+      } catch {
+        events = [];
+      }
+    }
+
+    if (!Array.isArray(events)) events = [];
+
+    // Keep only past wedstrijden
+    const pastMatches = events
+      .filter(e => {
+        if (!e.startTimestamp) return false;
+        if (new Date(e.startTimestamp) >= now) return false;
+        const name = String(e.heading || "").toLowerCase();
+        return name.includes("thuis") || name.includes("uit");
+      })
+      .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp))
+      .slice(0, 60);
+
+    if (!pastMatches.length) {
+      return json({ matches: [] });
+    }
+
+    // Try to get KNHB played/all matches for opponent enrichment
+    const knhbMatches = await fetchKnhbPlayedMatches(env);
+
+    const formatted = pastMatches.map(e => {
+      const date = e.startTimestamp.substring(0, 10);
+      const heading = String(e.heading || "");
+      const isHome = heading.toLowerCase().includes("thuis");
+
+      // Try KNHB enrichment for opponent name
+      let opponent = "";
+      if (knhbMatches) {
+        const km = knhbMatches.find(m => {
+          const kDate = (m.datetime || "").substring(0, 10);
+          return kDate === date;
+        });
+        if (km) {
+          const homeName = km.home_team?.name || "";
+          const awayName = km.away_team?.name || "";
+          const isOurHome = homeName.toLowerCase().includes("groen") || homeName.toLowerCase().includes("geel");
+          opponent = isOurHome ? awayName : homeName;
+        }
+      }
+
+      // If no KNHB match, try extracting from the heading
+      // Headings like "Thuis: GG H8 - Kampong H7" or "Uit bij Zwolle"
+      if (!opponent) {
+        const lower = heading.toLowerCase();
+        const afterColon = heading.includes(":") ? heading.split(":").slice(1).join(":").trim() : "";
+        if (afterColon) {
+          // "GG H8 - Opponent" or "Opponent - GG H8"
+          const parts = afterColon.split(/\s*[-–]\s*/);
+          if (parts.length >= 2) {
+            const isFirstOurs = parts[0].toLowerCase().includes("groen") ||
+              parts[0].toLowerCase().includes("geel") ||
+              parts[0].toLowerCase().includes("gg ");
+            opponent = isFirstOurs ? parts[1].trim() : parts[0].trim();
+          }
+        } else if (lower.includes("bij ")) {
+          opponent = heading.substring(lower.indexOf("bij ") + 4).trim();
+        } else if (lower.includes("vs ")) {
+          const vsParts = heading.substring(lower.indexOf("vs ") + 3).split(/\s*[-–]\s*/);
+          opponent = vsParts[0].trim();
+        }
+      }
+
+      return {
+        id: e.id,
+        date,
+        heading,
+        isHome,
+        opponent
+      };
+    });
+
+    return json({ matches: formatted });
+  } catch (err) {
+    return json({ matches: [], error: err.message });
+  }
+}
+
+async function fetchKnhbPlayedMatches(env) {
+  try {
+    let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("knhb_team_id") : null;
+    if (!teamId) {
+      teamId = await discoverKnhbTeamId(env);
+      if (!teamId) return null;
+    }
+
+    // Try several endpoints for historical match data
+    for (const suffix of ["matches/played", "matches", "schedule"]) {
+      try {
+        const res = await fetch(`${KNHB_MC}/teams/${teamId}/${suffix}`, {
+          headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const matches = data.data;
+        if (Array.isArray(matches) && matches.length > 0) return matches;
+      } catch { /* try next */ }
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /* ============================================================
