@@ -1,0 +1,29 @@
+name: Probe Standings
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe /standings endpoint
+        run: |
+          BASE="https://ho-krat-spond-trigger.lucdegoeij.workers.dev"
+          echo "=== Standings endpoint ==="
+          STANDINGS=$(curl -sf "$BASE/standings" || echo '{"error":"curl failed"}')
+          echo "$STANDINGS" | python3 -m json.tool
+          echo ""
+          echo "=== Top 5 teams ==="
+          echo "$STANDINGS" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('poule_id:', d.get('poule_id'))
+print('competition:', d.get('competition'))
+st = d.get('standings', [])
+print(f'total teams: {len(st)}')
+for s in st[:5]:
+    print(f\"  #{s.get('rank','?')} {s.get('team_name','?')} ({s.get('team_short','?')}) - GS:{s.get('played','?')} GW:{s.get('won','?')} GL:{s.get('drawn','?')} VL:{s.get('lost','?')} PIM:{s.get('points_deducted','?')} PT:{s.get('points','?')}\")
+print('---')
+print('poule_options:', d.get('poule_options'))
+" 2>&1 || echo "parse failed"
