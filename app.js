@@ -24,6 +24,7 @@ async function init() {
 
   loadEventData();
   loadSplitserData();
+  loadLineup();
 }
 
 /* =========================
@@ -390,6 +391,7 @@ async function loadEventData() {
     chanceData = calculateChances(eventData);
 
     renderEvent(eventData, chanceData);
+    if (lineupEditMode) renderLineupBank();
 
     const spondStatus = document.getElementById("spondStatus");
     if (spondStatus) {
@@ -788,6 +790,393 @@ function formatDateTime(date) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+/* =========================
+   LINEUP OPSTELLING
+========================= */
+
+const LINEUP_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/lineup";
+
+let lineupData = { formation: "4-3-3", positions: {}, extraPlayers: [] };
+let lineupEditMode = false;
+let lineupPassword = null;
+let lineupSelectedPlayer = null;
+let lineupExtraPlayers = [];
+
+// Slotdefinities per formatie: x/y in % van het SVG-viewBox (400×520)
+const LINEUP_FORMATIONS = {
+  "4-3-3": [
+    { id: "gk",    type: "gk",  x: 50,     y: 88.5,  label: "GK" },
+    { id: "def-1", type: "def", x: 15,     y: 71.7,  label: "V"  },
+    { id: "def-2", type: "def", x: 33.75,  y: 71.7,  label: "V"  },
+    { id: "def-3", type: "def", x: 66.25,  y: 71.7,  label: "V"  },
+    { id: "def-4", type: "def", x: 85,     y: 71.7,  label: "V"  },
+    { id: "mid-1", type: "mid", x: 20,     y: 50,    label: "M"  },
+    { id: "mid-2", type: "mid", x: 50,     y: 50,    label: "M"  },
+    { id: "mid-3", type: "mid", x: 80,     y: 50,    label: "M"  },
+    { id: "att-1", type: "att", x: 20,     y: 28.3,  label: "A"  },
+    { id: "att-2", type: "att", x: 50,     y: 28.3,  label: "A"  },
+    { id: "att-3", type: "att", x: 80,     y: 28.3,  label: "A"  },
+  ],
+  "4-4-2": [
+    { id: "gk",    type: "gk",  x: 50,     y: 88.5,  label: "GK" },
+    { id: "def-1", type: "def", x: 15,     y: 71.7,  label: "V"  },
+    { id: "def-2", type: "def", x: 33.75,  y: 71.7,  label: "V"  },
+    { id: "def-3", type: "def", x: 66.25,  y: 71.7,  label: "V"  },
+    { id: "def-4", type: "def", x: 85,     y: 71.7,  label: "V"  },
+    { id: "mid-1", type: "mid", x: 15,     y: 50,    label: "M"  },
+    { id: "mid-2", type: "mid", x: 37.5,   y: 50,    label: "M"  },
+    { id: "mid-3", type: "mid", x: 62.5,   y: 50,    label: "M"  },
+    { id: "mid-4", type: "mid", x: 85,     y: 50,    label: "M"  },
+    { id: "att-1", type: "att", x: 37.5,   y: 28.3,  label: "A"  },
+    { id: "att-2", type: "att", x: 62.5,   y: 28.3,  label: "A"  },
+  ],
+  "3-4-3": [
+    { id: "gk",    type: "gk",  x: 50,     y: 88.5,  label: "GK" },
+    { id: "def-1", type: "def", x: 20,     y: 71.7,  label: "V"  },
+    { id: "def-2", type: "def", x: 50,     y: 71.7,  label: "V"  },
+    { id: "def-3", type: "def", x: 80,     y: 71.7,  label: "V"  },
+    { id: "mid-1", type: "mid", x: 15,     y: 50,    label: "M"  },
+    { id: "mid-2", type: "mid", x: 37.5,   y: 50,    label: "M"  },
+    { id: "mid-3", type: "mid", x: 62.5,   y: 50,    label: "M"  },
+    { id: "mid-4", type: "mid", x: 85,     y: 50,    label: "M"  },
+    { id: "att-1", type: "att", x: 20,     y: 28.3,  label: "A"  },
+    { id: "att-2", type: "att", x: 50,     y: 28.3,  label: "A"  },
+    { id: "att-3", type: "att", x: 80,     y: 28.3,  label: "A"  },
+  ],
+  "3-5-2": [
+    { id: "gk",    type: "gk",  x: 50,     y: 88.5,  label: "GK" },
+    { id: "def-1", type: "def", x: 20,     y: 71.7,  label: "V"  },
+    { id: "def-2", type: "def", x: 50,     y: 71.7,  label: "V"  },
+    { id: "def-3", type: "def", x: 80,     y: 71.7,  label: "V"  },
+    { id: "mid-1", type: "mid", x: 10,     y: 50,    label: "M"  },
+    { id: "mid-2", type: "mid", x: 30,     y: 50,    label: "M"  },
+    { id: "mid-3", type: "mid", x: 50,     y: 50,    label: "M"  },
+    { id: "mid-4", type: "mid", x: 70,     y: 50,    label: "M"  },
+    { id: "mid-5", type: "mid", x: 90,     y: 50,    label: "M"  },
+    { id: "att-1", type: "att", x: 37.5,   y: 28.3,  label: "A"  },
+    { id: "att-2", type: "att", x: 62.5,   y: 28.3,  label: "A"  },
+  ],
+};
+
+async function loadLineup() {
+  try {
+    const response = await fetch(LINEUP_URL, { cache: "no-store" });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    lineupData = {
+      formation: data.formation || "4-3-3",
+      positions: data.positions || {},
+      extraPlayers: Array.isArray(data.extraPlayers) ? data.extraPlayers : [],
+      updatedAt: data.updatedAt || null
+    };
+    lineupExtraPlayers = [...lineupData.extraPlayers];
+  } catch (err) {
+    console.error("LINEUP LOAD ERROR:", err);
+  }
+
+  renderLineupField(lineupData, false);
+  renderLineupMeta();
+}
+
+function renderLineupField(data, editable) {
+  const wrap = document.getElementById("lineupFieldWrap");
+  if (!wrap) return;
+
+  wrap.querySelectorAll(".lineup-chip-slot").forEach(el => el.remove());
+
+  const formation = data.formation || "4-3-3";
+  const slots = LINEUP_FORMATIONS[formation] || LINEUP_FORMATIONS["4-3-3"];
+  const positions = data.positions || {};
+
+  for (const slot of slots) {
+    const playerName = positions[slot.id] || null;
+    const chip = document.createElement("div");
+
+    chip.className = [
+      "lineup-chip-slot",
+      playerName ? "" : "empty",
+      editable ? "editable" : ""
+    ].filter(Boolean).join(" ");
+
+    chip.style.left = slot.x + "%";
+    chip.style.top = slot.y + "%";
+    chip.title = playerName || slot.label;
+    chip.textContent = playerName ? lineupChipLabel(playerName) : slot.label;
+
+    if (editable) {
+      const capturedSlotId = slot.id;
+      const capturedPlayer = playerName;
+      chip.addEventListener("click", () => lineupSlotClick(capturedSlotId, capturedPlayer));
+    }
+
+    wrap.appendChild(chip);
+  }
+}
+
+function lineupChipLabel(fullName) {
+  const first = String(fullName || "").trim().split(/\s+/)[0];
+  return first.length <= 7 ? first : first.slice(0, 6) + "…";
+}
+
+function renderLineupMeta() {
+  const el = document.getElementById("lineupMeta");
+  if (!el) return;
+
+  const formation = lineupData.formation || "4-3-3";
+  const placed = Object.values(lineupData.positions || {}).length;
+  const total = (LINEUP_FORMATIONS[formation] || []).length;
+
+  let text = `Formatie: ${formation} · ${placed}/${total} posities bezet`;
+
+  if (lineupData.updatedAt) {
+    text += ` · bijgewerkt ${formatDateTime(new Date(lineupData.updatedAt))}`;
+  }
+
+  el.textContent = text;
+}
+
+function lineupEditBtnClick() {
+  if (lineupEditMode) {
+    lineupDisableEditMode();
+  } else {
+    lineupOpenPasswordPopup();
+  }
+}
+
+function lineupOpenPasswordPopup() {
+  const popup = document.getElementById("lineupPasswordPopup");
+  if (!popup) return;
+  document.getElementById("lineupPasswordInput").value = "";
+  document.getElementById("lineupPasswordError").textContent = "";
+  popup.style.display = "flex";
+  setTimeout(() => document.getElementById("lineupPasswordInput").focus(), 80);
+}
+
+function lineupPasswordCancel() {
+  document.getElementById("lineupPasswordPopup").style.display = "none";
+}
+
+async function lineupPasswordSubmit() {
+  const pw = document.getElementById("lineupPasswordInput").value;
+  const errorEl = document.getElementById("lineupPasswordError");
+
+  if (!pw) {
+    errorEl.textContent = "Vul een wachtwoord in.";
+    return;
+  }
+
+  errorEl.textContent = "Controleren…";
+
+  try {
+    const response = await fetch(LINEUP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        password: pw,
+        formation: lineupData.formation,
+        positions: lineupData.positions,
+        extraPlayers: lineupExtraPlayers
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      errorEl.textContent = result.error || "Onjuist wachtwoord.";
+      return;
+    }
+
+    lineupPassword = pw;
+    document.getElementById("lineupPasswordPopup").style.display = "none";
+    lineupEnableEditMode();
+  } catch (err) {
+    errorEl.textContent = "Fout: " + err.message;
+  }
+}
+
+function lineupEnableEditMode() {
+  lineupEditMode = true;
+  lineupSelectedPlayer = null;
+
+  document.getElementById("lineupEditBtn").textContent = "Sluiten";
+  document.getElementById("lineupFormationRow").style.display = "flex";
+  document.getElementById("lineupBankWrap").style.display = "block";
+  document.getElementById("lineupSaveRow").style.display = "block";
+
+  lineupUpdateFormationButtons();
+  renderLineupField(lineupData, true);
+  renderLineupBank();
+
+  const meta = document.getElementById("lineupMeta");
+  if (meta) meta.textContent = "Selecteer een speler in de bank en tik dan een positie op het veld.";
+}
+
+function lineupDisableEditMode() {
+  lineupEditMode = false;
+  lineupSelectedPlayer = null;
+
+  document.getElementById("lineupEditBtn").textContent = "Bewerken";
+  document.getElementById("lineupFormationRow").style.display = "none";
+  document.getElementById("lineupBankWrap").style.display = "none";
+  document.getElementById("lineupSaveRow").style.display = "none";
+  document.getElementById("lineupStatus").textContent = "";
+  document.getElementById("lineupStatus").style.color = "";
+
+  renderLineupField(lineupData, false);
+  renderLineupMeta();
+}
+
+function lineupUpdateFormationButtons() {
+  document.querySelectorAll(".lineup-form-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.formation === lineupData.formation);
+  });
+}
+
+function lineupSetFormation(formation) {
+  if (lineupData.formation === formation) return;
+
+  const oldPositions = { ...lineupData.positions };
+  const newSlotIds = new Set((LINEUP_FORMATIONS[formation] || []).map(s => s.id));
+
+  const newPositions = {};
+  for (const [slotId, playerName] of Object.entries(oldPositions)) {
+    if (newSlotIds.has(slotId)) newPositions[slotId] = playerName;
+  }
+
+  lineupData.formation = formation;
+  lineupData.positions = newPositions;
+  lineupSelectedPlayer = null;
+
+  lineupUpdateFormationButtons();
+  renderLineupField(lineupData, true);
+  renderLineupBank();
+}
+
+function lineupGetAllPlayers() {
+  const attending = eventData?.upcomingEvent?.attending || [];
+  return [...new Set([...attending, ...lineupExtraPlayers])];
+}
+
+function lineupGetAvailablePlayers() {
+  const placed = new Set(Object.values(lineupData.positions));
+  return lineupGetAllPlayers().filter(name => !placed.has(name));
+}
+
+function renderLineupBank() {
+  const bank = document.getElementById("lineupBank");
+  if (!bank) return;
+
+  bank.innerHTML = "";
+  const available = lineupGetAvailablePlayers();
+
+  if (!available.length) {
+    const empty = document.createElement("span");
+    empty.className = "lineup-bank-empty";
+    empty.textContent = "Alle spelers zijn opgesteld.";
+    bank.appendChild(empty);
+    return;
+  }
+
+  for (const name of available) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "lineup-bank-chip" + (name === lineupSelectedPlayer ? " selected" : "");
+    chip.textContent = name.split(/\s+/)[0];
+    chip.title = name;
+    chip.addEventListener("click", () => lineupBankChipClick(name));
+    bank.appendChild(chip);
+  }
+}
+
+function lineupBankChipClick(playerName) {
+  lineupSelectedPlayer = lineupSelectedPlayer === playerName ? null : playerName;
+  renderLineupBank();
+
+  const wrap = document.getElementById("lineupFieldWrap");
+  wrap.querySelectorAll(".lineup-chip-slot.empty.editable").forEach(el => {
+    el.classList.toggle("target-highlight", lineupSelectedPlayer !== null);
+  });
+}
+
+function lineupSlotClick(slotId, currentPlayer) {
+  if (currentPlayer) {
+    delete lineupData.positions[slotId];
+    lineupSelectedPlayer = null;
+    renderLineupField(lineupData, true);
+    renderLineupBank();
+    return;
+  }
+
+  if (!lineupSelectedPlayer) return;
+
+  // Verwijder de speler uit een eventueel bestaand slot
+  for (const [key, val] of Object.entries(lineupData.positions)) {
+    if (val === lineupSelectedPlayer) delete lineupData.positions[key];
+  }
+
+  lineupData.positions[slotId] = lineupSelectedPlayer;
+  lineupSelectedPlayer = null;
+  renderLineupField(lineupData, true);
+  renderLineupBank();
+}
+
+function lineupAddPlayer() {
+  const popup = document.getElementById("lineupAddPlayerPopup");
+  if (!popup) return;
+  document.getElementById("lineupAddPlayerInput").value = "";
+  popup.style.display = "flex";
+  setTimeout(() => document.getElementById("lineupAddPlayerInput").focus(), 80);
+}
+
+function lineupAddPlayerCancel() {
+  document.getElementById("lineupAddPlayerPopup").style.display = "none";
+}
+
+function lineupAddPlayerConfirm() {
+  const input = document.getElementById("lineupAddPlayerInput");
+  const name = input.value.trim();
+  if (!name) return;
+
+  if (!lineupExtraPlayers.includes(name)) lineupExtraPlayers.push(name);
+
+  document.getElementById("lineupAddPlayerPopup").style.display = "none";
+  renderLineupBank();
+}
+
+async function lineupSave() {
+  const statusEl = document.getElementById("lineupStatus");
+
+  try {
+    statusEl.textContent = "Opslaan…";
+    statusEl.style.color = "#ffcc00";
+
+    const response = await fetch(LINEUP_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({
+        password: lineupPassword,
+        formation: lineupData.formation,
+        positions: lineupData.positions,
+        extraPlayers: lineupExtraPlayers
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+
+    lineupData.updatedAt = new Date().toISOString();
+    statusEl.textContent = "Opstelling opgeslagen!";
+    statusEl.style.color = "#46d369";
+    setTimeout(() => { statusEl.textContent = ""; statusEl.style.color = ""; }, 3500);
+  } catch (err) {
+    statusEl.textContent = "Opslaan mislukt: " + err.message;
+    statusEl.style.color = "#ff5c5c";
+  }
 }
 
 init();
