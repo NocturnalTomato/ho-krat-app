@@ -1721,7 +1721,7 @@ function renderStatsEditor() {
   const spondMatches = pastSpondMatches || [];
 
   // Resolve current match data from either Spond source or saved stats
-  const { date: resolvedDate, opponent: resolvedOpponent, savedMatch } = statsResolveCurrentMatch();
+  const { date: resolvedDate, opponent: resolvedOpponent, goalsFor: resolvedGoalsFor, goalsAgainst: resolvedGoalsAgainst, savedMatch } = statsResolveCurrentMatch();
 
   // Build <option> groups for the match selector
   // Group 1: Spond matches (from /past-matches)
@@ -1784,6 +1784,15 @@ function renderStatsEditor() {
             <input class="lineup-popup-input stats-text-input" type="text" id="statsMatchOpponent" value="${escapeHtml(resolvedOpponent)}" placeholder="bv. Kampong Heren 7" autocomplete="off" />
           </div>
         </div>
+        <div class="stats-score-row">
+          <div class="stats-score-label">GG –</div>
+          <input class="stats-score-input" type="number" min="0" max="99" id="statsGoalsFor"
+            value="${resolvedGoalsFor !== null ? resolvedGoalsFor : ""}" placeholder="?" />
+          <div class="stats-score-sep">–</div>
+          <input class="stats-score-input" type="number" min="0" max="99" id="statsGoalsAgainst"
+            value="${resolvedGoalsAgainst !== null ? resolvedGoalsAgainst : ""}" placeholder="?" />
+          ${resolvedGoalsFor !== null && !savedMatch ? `<span class="stats-score-knhb-badge">KNHB</span>` : ""}
+        </div>
       </div>
 
       <div class="stats-field-section">
@@ -1802,7 +1811,10 @@ function renderStatsEditor() {
       ${playerChipsHtml("Gele kaart 🟨", "geleKaart", false)}
       ${playerChipsHtml("Groene kaart 🟩", "groeneKaart", false)}
 
-      <button class="lineup-save-btn stats-save-btn" type="button" onclick="statsSaveMatch()">Opslaan</button>
+      <div class="stats-action-row">
+        <button class="lineup-save-btn stats-save-btn" type="button" onclick="statsSaveMatch()">Opslaan</button>
+        ${hasSaved ? `<button class="stats-delete-btn" type="button" onclick="statsDeleteMatch()">Wis wedstrijd</button>` : ""}
+      </div>
       <div class="lineup-status" id="statsEditorStatus"></div>
     </div>
   `;
@@ -1820,7 +1832,7 @@ function statsResolveCurrentMatch() {
   const spondMatches = pastSpondMatches || [];
 
   if (statsEditorMatchId === "__new__") {
-    return { date: new Date().toISOString().slice(0, 10), opponent: "", savedMatch: null };
+    return { date: new Date().toISOString().slice(0, 10), opponent: "", goalsFor: null, goalsAgainst: null, savedMatch: null };
   }
 
   if (statsEditorMatchId.startsWith("spond_")) {
@@ -1830,15 +1842,18 @@ function statsResolveCurrentMatch() {
     return {
       date: spond?.date || new Date().toISOString().slice(0, 10),
       opponent: savedMatch?.opponent || spond?.opponent || "",
+      goalsFor: savedMatch?.goalsFor ?? spond?.goalsFor ?? null,
+      goalsAgainst: savedMatch?.goalsAgainst ?? spond?.goalsAgainst ?? null,
       savedMatch
     };
   }
 
-  // Saved match by date key
   const savedMatch = statsData.matches.find(m => m.matchId === statsEditorMatchId);
   return {
     date: savedMatch?.date || new Date().toISOString().slice(0, 10),
     opponent: savedMatch?.opponent || "",
+    goalsFor: savedMatch?.goalsFor ?? null,
+    goalsAgainst: savedMatch?.goalsAgainst ?? null,
     savedMatch
   };
 }
@@ -2003,7 +2018,12 @@ async function statsSaveMatch() {
   const geleKaart = statsReadChipsNames("geleKaart");
   const groeneKaart = statsReadChipsNames("groeneKaart");
 
-  const matchStats = { matchId, date, opponent, seasonYear, spondId, motm, goals, ownGoals, assists, geleKaart, groeneKaart };
+  const goalsForRaw = document.getElementById("statsGoalsFor")?.value;
+  const goalsAgainstRaw = document.getElementById("statsGoalsAgainst")?.value;
+  const goalsFor = goalsForRaw !== "" && goalsForRaw !== undefined ? Number(goalsForRaw) : null;
+  const goalsAgainst = goalsAgainstRaw !== "" && goalsAgainstRaw !== undefined ? Number(goalsAgainstRaw) : null;
+
+  const matchStats = { matchId, date, opponent, seasonYear, spondId, goalsFor, goalsAgainst, motm, goals, ownGoals, assists, geleKaart, groeneKaart };
 
   statusEl.textContent = "Opslaan…";
   statusEl.style.color = "#ffcc00";
@@ -2040,6 +2060,51 @@ async function statsSaveMatch() {
   } catch (err) {
     statusEl.textContent = "Fout: " + err.message;
     statusEl.style.color = "#ff5c5c";
+    if (err.message.includes("wachtwoord") || err.message.includes("401")) statsPassword = null;
+  }
+}
+
+async function statsDeleteMatch() {
+  const { savedMatch } = statsResolveCurrentMatch();
+  if (!savedMatch) return;
+
+  const matchId = savedMatch.matchId;
+  const label = savedMatch.date + (savedMatch.opponent ? " – " + savedMatch.opponent : "");
+
+  if (!confirm(`Statistieken wissen voor ${label}? Dit kan niet ongedaan worden gemaakt.`)) return;
+
+  const statusEl = document.getElementById("statsEditorStatus");
+  if (statusEl) { statusEl.textContent = "Wissen…"; statusEl.style.color = "#ffcc00"; }
+
+  try {
+    const res = await fetch(STATS_URL, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ password: statsPassword, matchId })
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+
+    // Remove from local data
+    statsData.matches = statsData.matches.filter(m => m.matchId !== matchId);
+
+    // Stay on the same Spond entry (just no saved data now), or switch to new
+    if (statsEditorMatchId === matchId) {
+      // Find corresponding Spond entry if exists
+      const spondEntry = (pastSpondMatches || []).find(m => m.date === matchId);
+      if (spondEntry) {
+        statsEditorMatchId = "spond_" + spondEntry.id;
+      } else {
+        statsEditorMatchId = null;
+      }
+    }
+
+    statsViewingSeason = getSeasonYear(matchId);
+    renderStatsCard();
+    renderStatsEditor();
+  } catch (err) {
+    if (statusEl) { statusEl.textContent = "Wissen mislukt: " + err.message; statusEl.style.color = "#ff5c5c"; }
     if (err.message.includes("wachtwoord") || err.message.includes("401")) statsPassword = null;
   }
 }
@@ -2150,6 +2215,25 @@ function renderExpandedStats(playerName) {
         <div class="expanded-big-stat"><div class="expanded-big-num">${seasonGames}</div><div class="expanded-big-label">WEDSTR.</div></div>
       </div>
 
+      ${(() => {
+        const wdl = seasonMatches.filter(m => m.goalsFor !== null && m.goalsAgainst !== null);
+        if (!wdl.length) return "";
+        const W = wdl.filter(m => m.goalsFor > m.goalsAgainst).length;
+        const D = wdl.filter(m => m.goalsFor === m.goalsAgainst).length;
+        const L = wdl.filter(m => m.goalsFor < m.goalsAgainst).length;
+        const gf = wdl.reduce((s, m) => s + m.goalsFor, 0);
+        const ga = wdl.reduce((s, m) => s + m.goalsAgainst, 0);
+        return `<div class="expanded-record-row">
+          <span class="record-w">${W}W</span>
+          <span class="record-sep">·</span>
+          <span class="record-d">${D}G</span>
+          <span class="record-sep">·</span>
+          <span class="record-l">${L}V</span>
+          <span class="record-sep">·</span>
+          <span class="record-gd">${gf}–${ga}</span>
+        </div>`;
+      })()}
+
       ${(seasonGeel || seasonGroen || seasonOwnGoals) ? `<div class="expanded-cards-row">
         ${seasonGeel ? `<span class="expanded-card-badge yellow">🟨 ${seasonGeel}×</span>` : ""}
         ${seasonGroen ? `<span class="expanded-card-badge green">🟩 ${seasonGroen}×</span>` : ""}
@@ -2202,9 +2286,17 @@ function renderExpandedStats(playerName) {
           if (groen) bits.push("🟩");
           if (motm) bits.push("⭐ MOTM");
           const d = new Date(m.date + "T12:00:00").toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" });
+          const scoreStr = (m.goalsFor !== null && m.goalsAgainst !== null)
+            ? `${m.goalsFor}–${m.goalsAgainst}` : "";
+          const scoreClass = scoreStr
+            ? (m.goalsFor > m.goalsAgainst ? "match-log-score win"
+               : m.goalsFor < m.goalsAgainst ? "match-log-score loss"
+               : "match-log-score draw")
+            : "";
           return `<div class="match-log-row">
             <span class="match-log-date">${d}</span>
             <span class="match-log-opp">${escapeHtml(m.opponent || "?")}</span>
+            ${scoreStr ? `<span class="${scoreClass}">${scoreStr}</span>` : ""}
             <span class="match-log-stats">${bits.join(" · ")}</span>
           </div>`;
         }).join("")}

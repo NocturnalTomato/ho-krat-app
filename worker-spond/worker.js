@@ -4,7 +4,7 @@ const KNHB_MC = "https://publicaties.hockeyweerelt.nl/mc";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
@@ -55,6 +55,7 @@ export default {
     if (url.pathname === "/stats") {
       if (request.method === "GET") return handleStatsGet(env);
       if (request.method === "POST") return handleStatsPost(request, env);
+      if (request.method === "DELETE") return handleStatsDelete(request, env);
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
@@ -208,6 +209,44 @@ async function handleStatsPost(request, env) {
   return json({ success: true });
 }
 
+async function handleStatsDelete(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ success: false, error: "Ongeldige JSON" }, { status: 400 });
+  }
+
+  const { password, matchId } = body;
+
+  if (!env.CAPTAIN_PASSWORD) {
+    return json({ success: false, error: "Server niet geconfigureerd" }, { status: 500 });
+  }
+  if (!timingSafeEqual(password, env.CAPTAIN_PASSWORD)) {
+    return json({ success: false, error: "Onjuist wachtwoord" }, { status: 401 });
+  }
+  if (!matchId) {
+    return json({ success: false, error: "matchId ontbreekt" }, { status: 400 });
+  }
+  if (!env.LINEUP_KV) {
+    return json({ success: false, error: "KV niet geconfigureerd" }, { status: 500 });
+  }
+
+  const raw = await env.LINEUP_KV.get("all_match_stats");
+  let matches = [];
+  try { matches = raw ? JSON.parse(raw) : []; } catch { matches = []; }
+
+  const before = matches.length;
+  matches = matches.filter(m => m.matchId !== matchId);
+
+  if (matches.length === before) {
+    return json({ success: false, error: "Wedstrijd niet gevonden" }, { status: 404 });
+  }
+
+  await env.LINEUP_KV.put("all_match_stats", JSON.stringify(matches));
+  return json({ success: true });
+}
+
 /* ============================================================
    PAST MATCHES (for stats editor dropdown)
 ============================================================ */
@@ -268,8 +307,10 @@ async function handlePastMatchesGet(env) {
       const heading = String(e.heading || "");
       const isHome = heading.toLowerCase().includes("thuis");
 
-      // Try KNHB enrichment for opponent name
+      // Try KNHB enrichment for opponent name + score
       let opponent = "";
+      let goalsFor = null;
+      let goalsAgainst = null;
       if (knhbMatches) {
         const km = knhbMatches.find(m => {
           const kDate = (m.datetime || "").substring(0, 10);
@@ -278,8 +319,17 @@ async function handlePastMatchesGet(env) {
         if (km) {
           const homeName = km.home_team?.name || "";
           const awayName = km.away_team?.name || "";
-          const isOurHome = homeName.toLowerCase().includes("groen") || homeName.toLowerCase().includes("geel");
+          const isOurHome = homeName.toLowerCase().includes("groen") ||
+            homeName.toLowerCase().includes("geel");
           opponent = isOurHome ? awayName : homeName;
+
+          // Extract score — KNHB may use home_score/away_score or nested score object
+          const hs = km.home_score ?? km.score?.home ?? null;
+          const as_ = km.away_score ?? km.score?.away ?? null;
+          if (hs !== null && as_ !== null) {
+            goalsFor = isOurHome ? Number(hs) : Number(as_);
+            goalsAgainst = isOurHome ? Number(as_) : Number(hs);
+          }
         }
       }
 
@@ -310,7 +360,9 @@ async function handlePastMatchesGet(env) {
         date,
         heading,
         isHome,
-        opponent
+        opponent,
+        goalsFor,
+        goalsAgainst
       };
     });
 
