@@ -65,8 +65,16 @@ export default {
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
-    if (url.pathname === "/probe") {
-      if (request.method === "GET") return handleProbe(env);
+    if (url.pathname === "/probe/knhb") {
+      if (request.method === "GET") return handleProbeKnhb(env, url);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+    if (url.pathname === "/probe/hw") {
+      if (request.method === "GET") return handleProbeHw(env, url);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+    if (url.pathname === "/probe/clubi") {
+      if (request.method === "GET") return handleProbeClubi(url);
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
@@ -807,10 +815,203 @@ async function fetchHwPlayedMatches(env) {
 }
 
 /* ============================================================
-   PROBE — exhaustive API discovery for match scores
-   GET /probe  →  raw results from every hockey data source
+   PROBE — focused API discovery, split across sub-endpoints
+   Each handler makes ≤4 HTTP fetches to stay under the
+   Cloudflare Workers free-plan subrequest limit (50/invocation).
+
+   GET /probe/knhb          discover club/team, test played endpoint
+   GET /probe/knhb?teamId=X skip discovery, just test matches
+   GET /probe/hw            discover team via HockeyWeerelt API
+   GET /probe/hw?teamId=X   skip discovery, just test matches
+   GET /probe/clubi         test clubi.hockeyweerelt.nl
 ============================================================ */
 
+// ---------- KNHB probe (max 4 HTTP fetches) ----------
+async function handleProbeKnhb(env, url) {
+  const provided = url.searchParams.get("teamId");
+
+  // If teamId supplied, skip discovery and go straight to match data
+  if (provided) {
+    return json(await probeKnhbMatches(provided));
+  }
+
+  // Step 1 — clubs (1 fetch)
+  let clubs;
+  try {
+    const r = await fetch(`${KNHB_MC}/clubs`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!r.ok) return json({ step: "clubs", status: r.status, body: (await r.text()).substring(0, 300) });
+    clubs = ((await r.json()).data || []);
+  } catch (e) {
+    return json({ step: "clubs", error: e.message });
+  }
+
+  const gg = clubs.find(c => {
+    const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+    return n.includes("groen") && n.includes("geel");
+  });
+  if (!gg) return json({ step: "clubs", count: clubs.length, error: "GG not found", sample: clubs.slice(0, 5).map(c => c.name) });
+
+  // Step 2 — teams (1 fetch)
+  let teams;
+  try {
+    const r = await fetch(`${KNHB_MC}/clubs/${gg.id}/teams`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!r.ok) return json({ step: "teams", club: gg.name, status: r.status });
+    teams = ((await r.json()).data || []);
+  } catch (e) {
+    return json({ step: "teams", error: e.message });
+  }
+
+  const h8 = teams.find(t => {
+    const n = (t.name || t.short_name || "").toLowerCase().replace(/\s+/g, " ").trim();
+    return n === "heren 8" || n === "h8" || n === "h 8" ||
+      n.endsWith(" h8") || n.endsWith(" h 8") || n.endsWith(" heren 8") ||
+      (n.includes("heren") && /\b8\b/.test(n));
+  });
+  if (!h8) return json({ step: "teams", club: gg.name, teams: teams.map(t => `${t.id}: ${t.name} / ${t.short_name}`), error: "H8 not found" });
+
+  // Cache the team ID
+  if (env.LINEUP_KV) await env.LINEUP_KV.put("knhb_team_id", String(h8.id), { expirationTtl: 86400 });
+
+  // Steps 3+4 — match data
+  const matchResult = await probeKnhbMatches(String(h8.id));
+  return json({ club: gg.name, club_id: gg.id, team: h8.name, team_id: h8.id, ...matchResult });
+}
+
+async function probeKnhbMatches(teamId) {
+  // fetch 1: played
+  let playedResult = {};
+  try {
+    const r = await fetch(`${KNHB_MC}/teams/${teamId}/matches/played`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    const text = await r.text();
+    if (r.ok) {
+      const d = JSON.parse(text);
+      const arr = d.data || d.matches || (Array.isArray(d) ? d : null);
+      playedResult = {
+        played_status: r.status,
+        played_count: Array.isArray(arr) ? arr.length : null,
+        played_keys: Object.keys(d),
+        played_sample: Array.isArray(arr) ? arr.slice(0, 2) : d
+      };
+    } else {
+      playedResult = { played_status: r.status, played_body: text.substring(0, 300) };
+    }
+  } catch (e) {
+    playedResult = { played_error: e.message };
+  }
+
+  // fetch 2: all matches (fallback)
+  let allResult = {};
+  try {
+    const r = await fetch(`${KNHB_MC}/teams/${teamId}/matches`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const arr = d.data || (Array.isArray(d) ? d : null);
+      allResult = {
+        all_status: r.status,
+        all_count: Array.isArray(arr) ? arr.length : null,
+        all_sample: Array.isArray(arr) ? arr.slice(0, 2) : null
+      };
+    } else {
+      allResult = { all_status: r.status };
+    }
+  } catch (e) {
+    allResult = { all_error: e.message };
+  }
+
+  return { team_id: teamId, ...playedResult, ...allResult };
+}
+
+// ---------- HockeyWeerelt probe (max 3 HTTP + 2 KV) ----------
+async function handleProbeHw(env, url) {
+  const provided = url.searchParams.get("teamId");
+
+  try {
+    const { uuid, token } = await hwGetOrCreateDevice(env);
+
+    if (provided) {
+      return json(await probeHwMatches(provided, uuid, token));
+    }
+
+    // fetch 1: clubs
+    const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
+    const clubs = clubsData.data || clubsData;
+    if (!Array.isArray(clubs)) return json({ step: "clubs", type: typeof clubs, raw: JSON.stringify(clubs).substring(0, 300) });
+
+    const gg = clubs.find(c => {
+      const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+      return n.includes("groen") && n.includes("geel");
+    });
+    if (!gg) return json({ step: "clubs", count: clubs.length, error: "GG not found", sample: clubs.slice(0, 5).map(c => c.name) });
+
+    // fetch 2: club detail (teams)
+    const clubRef = gg.federation_reference_id || gg.id;
+    const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+    const teamList = clubData.data?.teams || clubData.teams || (Array.isArray(clubData.data) ? clubData.data : null) || [];
+
+    const h8 = Array.isArray(teamList) && teamList.find(t => {
+      const short = (t.short_name || "").toLowerCase().trim();
+      const full = (t.name || t.full_name || "").toLowerCase();
+      return short === "h8" || short === "8" || full.includes("heren 8") || full === "h8";
+    });
+    if (!h8) return json({ step: "club_detail", club: gg.name, teams: Array.isArray(teamList) ? teamList.map(t => `${t.id}: ${t.short_name}/${t.name}`) : [], error: "H8 not found" });
+
+    if (env.LINEUP_KV) await env.LINEUP_KV.put("hw_team_id", String(h8.id), { expirationTtl: 86400 * 30 });
+
+    // fetch 3: matches
+    const matchResult = await probeHwMatches(String(h8.id), uuid, token);
+    return json({ club: gg.name, team: h8.name, team_id: h8.id, ...matchResult });
+  } catch (e) {
+    return json({ error: e.message });
+  }
+}
+
+async function probeHwMatches(teamId, uuid, token) {
+  try {
+    const data = await hwRequest("/matches/team", { "team_id[]": teamId }, "GET", uuid, token);
+    const arr = data.data || data;
+    if (!Array.isArray(arr)) return { matches_type: typeof arr, raw: JSON.stringify(arr).substring(0, 300) };
+    const now = new Date();
+    const played = arr.filter(m => m.date && new Date(m.date) < now && m.status !== "scheduled" && m.status !== "announced");
+    return {
+      total: arr.length,
+      statuses: [...new Set(arr.map(m => m.status))],
+      played_count: played.length,
+      sample_played: played.slice(0, 2),
+      sample_all: arr.slice(0, 1)
+    };
+  } catch (e) {
+    return { matches_error: e.message };
+  }
+}
+
+// ---------- Clubi probe (1 HTTP fetch) ----------
+async function handleProbeClubi(url) {
+  const path = url.searchParams.get("path") || "/doc.html";
+  const targetUrl = `${CLUBI_BASE}${path}`;
+  try {
+    const r = await fetch(targetUrl, {
+      headers: { "Accept": "application/json, text/html", "User-Agent": "ho-krat-app/1.0" }
+    });
+    const ct = r.headers.get("content-type") || "";
+    const body = await r.text();
+    return json({
+      url: targetUrl, status: r.status, content_type: ct,
+      preview: body.substring(0, 1000)
+    });
+  } catch (e) {
+    return json({ url: targetUrl, error: e.message });
+  }
+}
+
+// placeholder to satisfy old route reference — never reached now
 async function handleProbe(env) {
   const out = { ts: new Date().toISOString(), knhb: {}, hw: {}, clubi: {} };
 
