@@ -1,6 +1,7 @@
 const TARGET_GROUP_NAME = "Groen Geel - H8";
 const API_BASE_URL = "https://api.spond.com/core/v1/";
 const KNHB_MC = "https://publicaties.hockeyweerelt.nl/mc";
+const CLUBI_BASE = "https://clubi.hockeyweerelt.nl";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +62,24 @@ export default {
 
     if (url.pathname === "/past-matches") {
       if (request.method === "GET") return handlePastMatchesGet(env);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+
+    if (url.pathname === "/standings") {
+      if (request.method === "GET") return handleStandings(env, url);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+
+    if (url.pathname === "/probe/knhb") {
+      if (request.method === "GET") return handleProbeKnhb(env, url);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+    if (url.pathname === "/probe/hw") {
+      if (request.method === "GET") return handleProbeHw(env, url);
+      return json({ success: false, error: "Method not allowed" }, { status: 405 });
+    }
+    if (url.pathname === "/probe/clubi") {
+      if (request.method === "GET") return handleProbeClubi(url);
       return json({ success: false, error: "Method not allowed" }, { status: 405 });
     }
 
@@ -798,6 +817,595 @@ async function fetchHwPlayedMatches(env) {
   } catch {
     return null;
   }
+}
+
+/* ============================================================
+   PROBE — focused API discovery, split across sub-endpoints
+   Each handler makes ≤4 HTTP fetches to stay under the
+   Cloudflare Workers free-plan subrequest limit (50/invocation).
+
+   GET /probe/knhb          discover club/team, test played endpoint
+   GET /probe/knhb?teamId=X skip discovery, just test matches
+   GET /probe/hw            discover team via HockeyWeerelt API
+   GET /probe/hw?teamId=X   skip discovery, just test matches
+   GET /probe/clubi         test clubi.hockeyweerelt.nl
+============================================================ */
+
+// ---------- Poule standings ----------
+async function handleStandings(env, url) {
+  try {
+    const { uuid, token } = await hwGetOrCreateDevice(env);
+
+    // Try KV-cached IDs first (populated by probe or previous standings call)
+    let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_team_id") : null;
+    let recentPouleId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_recent_poule_id") : null;
+
+    // Discovery: only runs when no cached team ID
+    if (!teamId) {
+      const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
+      const clubs = clubsData.data || clubsData;
+      const gg = Array.isArray(clubs) && clubs.find(c => {
+        const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+        return n.includes("groen") && n.includes("geel");
+      });
+      if (!gg) return json({ error: "Club niet gevonden" }, { status: 404 });
+
+      const clubRef = gg.federation_reference_id || gg.id;
+      const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+      const teamList = clubData.data?.teams || clubData.teams || [];
+      const h8 = Array.isArray(teamList) && teamList.find(t => {
+        const short = (t.short_name || "").toLowerCase().trim();
+        return short === "h8" || short === "8";
+      });
+      if (!h8) return json({ error: "Team H8 niet gevonden" }, { status: 404 });
+
+      teamId = String(h8.id);
+      if (h8.recent_poule_id) recentPouleId = String(h8.recent_poule_id);
+
+      if (env.LINEUP_KV) {
+        await env.LINEUP_KV.put("hw_team_id", teamId, { expirationTtl: 86400 * 30 });
+        if (recentPouleId) await env.LINEUP_KV.put("hw_recent_poule_id", recentPouleId, { expirationTtl: 86400 * 7 });
+      }
+    }
+
+    // Try to get all poules this team has participated in (for season selector)
+    let teamPoules = [];
+    try {
+      const poulesData = await hwRequest(`/teams/${teamId}/poules`, {}, "GET", uuid, token);
+      const arr = poulesData.data || poulesData;
+      if (Array.isArray(arr) && arr.length > 0) teamPoules = arr;
+    } catch (_) {}
+
+    // Determine which poule to show
+    const requestedPouleId = url.searchParams.get("poule_id") || recentPouleId || "174656";
+
+    // Fetch the poule (standings + competition info are embedded here)
+    const pouleData = await hwRequest(`/poules/${requestedPouleId}`, {}, "GET", uuid, token);
+    const inner = pouleData.data || pouleData;
+    const rawStandings = Array.isArray(inner.standings) ? inner.standings : [];
+
+    const standings = rawStandings.map(s => ({
+      rank: s.rank ?? null,
+      team_id: s.team?.id ?? null,
+      team_name: s.team?.name ?? s.team_name ?? "?",
+      team_short: s.team?.short_name ?? null,
+      played: s.played ?? s.matches_played ?? 0,
+      won: s.won ?? s.wins ?? null,
+      drawn: s.drawn ?? s.draws ?? s.tied ?? null,
+      lost: s.lost ?? s.losses ?? null,
+      points_deducted: s.points_deducted ?? s.penalty_points ?? s.deductions ?? 0,
+      points: s.points ?? 0,
+    }));
+
+    // Build poule options for the season selector
+    const pouleOptions = teamPoules.length > 1
+      ? teamPoules.map(p => ({
+          id: String(p.id ?? p.poule_id),
+          label: p.name || p.competition?.name || String(p.id ?? p.poule_id),
+        }))
+      : [{ id: String(requestedPouleId), label: inner.competition?.name || `Poule ${requestedPouleId}` }];
+
+    return json({
+      poule_id: String(requestedPouleId),
+      competition: inner.competition?.name ?? null,
+      poule_options: pouleOptions,
+      standings,
+    });
+  } catch (e) {
+    return json({ error: e.message }, { status: 500 });
+  }
+}
+
+// ---------- KNHB probe (max 4 HTTP fetches) ----------
+async function handleProbeKnhb(env, url) {
+  const provided = url.searchParams.get("teamId");
+
+  // If teamId supplied, skip discovery and go straight to match data
+  if (provided) {
+    return json(await probeKnhbMatches(provided));
+  }
+
+  // Step 1 — clubs: use redirect:manual to diagnose the redirect loop
+  // Also try the known club ref from HW (HH11GF7) directly to skip clubs discovery
+  let clubs;
+  const KNOWN_CLUB_REF = "HH11GF7"; // from HW team.federation_reference_id
+  try {
+    const r = await fetch(`${KNHB_MC}/clubs`, {
+      redirect: 'manual',
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (r.status >= 300 && r.status < 400) {
+      const location = r.headers.get('Location') || r.headers.get('location') || '';
+      const hdrs = {};
+      for (const [k, v] of r.headers.entries()) hdrs[k] = v;
+      const redirectBody = await r.text();
+
+      // Clubs discovery is blocked — try the known KNHB club ref directly
+      let directResult = {};
+      try {
+        const r2 = await fetch(`${KNHB_MC}/clubs/${KNOWN_CLUB_REF}/teams`, {
+          headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+        });
+        const body2 = await r2.text();
+        if (r2.ok) {
+          const d = JSON.parse(body2);
+          const teams = d.data || d;
+          directResult = { status: r2.status, count: Array.isArray(teams) ? teams.length : typeof teams, sample: Array.isArray(teams) ? teams.slice(0, 5).map(t => `${t.id}: ${t.name}/${t.short_name}`) : body2.substring(0, 300) };
+          if (Array.isArray(teams)) {
+            const h8 = teams.find(t => {
+              const n = (t.name || t.short_name || "").toLowerCase().trim().replace(/\s+/g, " ");
+              return n === "heren 8" || n === "h8" || n.endsWith(" h8") || (n.includes("heren") && /\b8\b/.test(n));
+            });
+            if (h8) {
+              if (env.LINEUP_KV) await env.LINEUP_KV.put("knhb_team_id", String(h8.id), { expirationTtl: 86400 });
+              const matchResult = await probeKnhbMatches(String(h8.id));
+              directResult.h8 = { id: h8.id, name: h8.name };
+              directResult.matches = matchResult;
+            }
+          }
+        } else {
+          directResult = { status: r2.status, body: body2.substring(0, 300) };
+        }
+      } catch (e) {
+        directResult = { error: e.message };
+      }
+
+      return json({ step: "clubs_redirect", status: r.status, location, redirect_body: redirectBody.substring(0, 300), all_headers: hdrs, direct_club_ref: directResult });
+    }
+    if (!r.ok) return json({ step: "clubs", status: r.status, body: (await r.text()).substring(0, 500) });
+    clubs = ((await r.json()).data || []);
+  } catch (e) {
+    return json({ step: "clubs", error: e.message });
+  }
+
+  const gg = clubs.find(c => {
+    const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+    return n.includes("groen") && n.includes("geel");
+  });
+  if (!gg) return json({ step: "clubs", count: clubs.length, error: "GG not found", sample: clubs.slice(0, 5).map(c => c.name) });
+
+  // Step 2 — teams (1 fetch)
+  let teams;
+  try {
+    const r = await fetch(`${KNHB_MC}/clubs/${gg.id}/teams`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (!r.ok) return json({ step: "teams", club: gg.name, status: r.status });
+    teams = ((await r.json()).data || []);
+  } catch (e) {
+    return json({ step: "teams", error: e.message });
+  }
+
+  const h8 = teams.find(t => {
+    const n = (t.name || t.short_name || "").toLowerCase().replace(/\s+/g, " ").trim();
+    return n === "heren 8" || n === "h8" || n === "h 8" ||
+      n.endsWith(" h8") || n.endsWith(" h 8") || n.endsWith(" heren 8") ||
+      (n.includes("heren") && /\b8\b/.test(n));
+  });
+  if (!h8) return json({ step: "teams", club: gg.name, teams: teams.map(t => `${t.id}: ${t.name} / ${t.short_name}`), error: "H8 not found" });
+
+  // Cache the team ID
+  if (env.LINEUP_KV) await env.LINEUP_KV.put("knhb_team_id", String(h8.id), { expirationTtl: 86400 });
+
+  // Steps 3+4 — match data
+  const matchResult = await probeKnhbMatches(String(h8.id));
+  return json({ club: gg.name, club_id: gg.id, team: h8.name, team_id: h8.id, ...matchResult });
+}
+
+async function probeKnhbMatches(teamId) {
+  // fetch 1: played
+  let playedResult = {};
+  try {
+    const r = await fetch(`${KNHB_MC}/teams/${teamId}/matches/played`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    const text = await r.text();
+    if (r.ok) {
+      const d = JSON.parse(text);
+      const arr = d.data || d.matches || (Array.isArray(d) ? d : null);
+      playedResult = {
+        played_status: r.status,
+        played_count: Array.isArray(arr) ? arr.length : null,
+        played_keys: Object.keys(d),
+        played_sample: Array.isArray(arr) ? arr.slice(0, 2) : d
+      };
+    } else {
+      playedResult = { played_status: r.status, played_body: text.substring(0, 300) };
+    }
+  } catch (e) {
+    playedResult = { played_error: e.message };
+  }
+
+  // fetch 2: all matches (fallback)
+  let allResult = {};
+  try {
+    const r = await fetch(`${KNHB_MC}/teams/${teamId}/matches`, {
+      headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
+    });
+    if (r.ok) {
+      const d = await r.json();
+      const arr = d.data || (Array.isArray(d) ? d : null);
+      allResult = {
+        all_status: r.status,
+        all_count: Array.isArray(arr) ? arr.length : null,
+        all_sample: Array.isArray(arr) ? arr.slice(0, 2) : null
+      };
+    } else {
+      allResult = { all_status: r.status };
+    }
+  } catch (e) {
+    allResult = { all_error: e.message };
+  }
+
+  return { team_id: teamId, ...playedResult, ...allResult };
+}
+
+// ---------- HockeyWeerelt probe (max 3 HTTP + 2 KV) ----------
+async function handleProbeHw(env, url) {
+  const provided = url.searchParams.get("teamId");
+
+  try {
+    const { uuid, token } = await hwGetOrCreateDevice(env);
+
+    if (provided) {
+      return json(await probeHwMatches(provided, uuid, token));
+    }
+
+    // fetch 1: clubs
+    const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
+    const clubs = clubsData.data || clubsData;
+    if (!Array.isArray(clubs)) return json({ step: "clubs", type: typeof clubs, raw: JSON.stringify(clubs).substring(0, 300) });
+
+    const gg = clubs.find(c => {
+      const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+      return n.includes("groen") && n.includes("geel");
+    });
+    if (!gg) return json({ step: "clubs", count: clubs.length, error: "GG not found", sample: clubs.slice(0, 5).map(c => c.name) });
+
+    // fetch 2: club detail (teams)
+    const clubRef = gg.federation_reference_id || gg.id;
+    const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+    const teamList = clubData.data?.teams || clubData.teams || (Array.isArray(clubData.data) ? clubData.data : null) || [];
+
+    const h8 = Array.isArray(teamList) && teamList.find(t => {
+      const short = (t.short_name || "").toLowerCase().trim();
+      const full = (t.name || t.full_name || "").toLowerCase();
+      return short === "h8" || short === "8" || full.includes("heren 8") || full === "h8";
+    });
+    if (!h8) return json({ step: "club_detail", club: gg.name, teams: Array.isArray(teamList) ? teamList.map(t => `${t.id}: ${t.short_name}/${t.name}`) : [], error: "H8 not found" });
+
+    if (env.LINEUP_KV) {
+      await env.LINEUP_KV.put("hw_team_id", String(h8.id), { expirationTtl: 86400 * 30 });
+      if (h8.recent_poule_id) await env.LINEUP_KV.put("hw_recent_poule_id", String(h8.recent_poule_id), { expirationTtl: 86400 * 7 });
+    }
+
+    // fetch 3+: matches (multiple attempts)
+    const matchResult = await probeHwMatches(String(h8.id), uuid, token, h8.recent_poule_id);
+    return json({ club: gg.name, team: h8.name, team_id: h8.id, team_obj: h8, ...matchResult });
+  } catch (e) {
+    return json({ error: e.message });
+  }
+}
+
+async function probeHwMatches(teamId, uuid, token, pouleId) {
+  const results = {};
+
+  // 1: basic team matches (often empty in off-season)
+  try {
+    const data = await hwRequest("/matches/team", { "team_id[]": teamId }, "GET", uuid, token);
+    const arr = data.data || data;
+    results.basic = { count: Array.isArray(arr) ? arr.length : "not-array", raw: JSON.stringify(data).substring(0, 200) };
+  } catch (e) { results.basic = { error: e.message }; }
+
+  // 2: poule detail — matches are embedded in this response (not a separate /matches endpoint)
+  if (pouleId) {
+    try {
+      const data = await hwRequest(`/poules/${pouleId}`, {}, "GET", uuid, token);
+      const inner = data.data || data;
+      const matchesArr = Array.isArray(inner.matches) ? inner.matches : [];
+      const standingsArr = Array.isArray(inner.standings) ? inner.standings : [];
+
+      // Find which team IDs in standings correspond to our club
+      const ggStanding = standingsArr.find(s => {
+        const n = (s.team?.name || "").toLowerCase();
+        return n.includes("groen") || n.includes("geel") || n.includes("h8");
+      });
+      const ggTeamId = ggStanding?.team?.id;
+
+      // Filter by team ID (preferred) or name — HW match structure uses m.home/m.away not m.home_team/m.away_team
+      const ggMatches = matchesArr.filter(m =>
+        m.home?.id === ggTeamId || m.away?.id === ggTeamId ||
+        (m.home?.name || "").toLowerCase().includes("groen") ||
+        (m.away?.name || "").toLowerCase().includes("groen")
+      );
+      // HW score is at m.score.home / m.score.away, not m.home_score
+      const scoredGg = ggMatches.filter(m => m.score?.home !== null && m.score?.home !== undefined);
+
+      results.poule_detail = {
+        competition: inner.competition?.name,
+        standings_count: standingsArr.length,
+        gg_standing: ggStanding ? { rank: ggStanding.rank, team_id: ggStanding.team?.id, team_name: ggStanding.team?.name, played: ggStanding.played, points: ggStanding.points } : null,
+        gg_team_id_in_poule: ggTeamId,
+        matches_total: matchesArr.length,
+        gg_matches: ggMatches.length,
+        gg_scored: scoredGg.length,
+        gg_match_sample: ggMatches.slice(0, 3),
+        gg_scored_sample: scoredGg.slice(0, 3),
+        all_matches_sample: matchesArr.slice(0, 2)
+      };
+    } catch (e) { results.poule_detail = { error: e.message }; }
+  }
+
+  // 4: explicit date range for past season (2025-2026)
+  try {
+    const data = await hwRequest("/matches/team", {
+      "team_id[]": teamId,
+      "date_from": "2025-08-01",
+      "date_to": new Date().toISOString().substring(0, 10)
+    }, "GET", uuid, token);
+    const arr = data.data || data;
+    results.date_range = { count: Array.isArray(arr) ? arr.length : "not-array", raw: JSON.stringify(data).substring(0, 300) };
+  } catch (e) { results.date_range = { error: e.message }; }
+
+  return { team_id: teamId, poule_id: pouleId, ...results };
+}
+
+// ---------- Clubi probe (1 HTTP fetch) ----------
+async function handleProbeClubi(url) {
+  const path = url.searchParams.get("path") || "/doc.html";
+  const targetUrl = `${CLUBI_BASE}${path}`;
+  try {
+    const r = await fetch(targetUrl, {
+      headers: { "Accept": "application/json, text/html", "User-Agent": "ho-krat-app/1.0" }
+    });
+    const ct = r.headers.get("content-type") || "";
+    const body = await r.text();
+    const limit = parseInt(url.searchParams.get("limit") || "5000");
+    return json({
+      url: targetUrl, status: r.status, content_type: ct,
+      preview: body.substring(0, limit)
+    });
+  } catch (e) {
+    return json({ url: targetUrl, error: e.message });
+  }
+}
+
+// placeholder to satisfy old route reference — never reached now
+async function handleProbe(env) {
+  const out = { ts: new Date().toISOString(), knhb: {}, hw: {}, clubi: {} };
+
+  // ── KNHB ────────────────────────────────────────────────────
+  // Try several header combos because CloudFront sometimes blocks cloud IPs
+  const knhbHeaderSets = [
+    { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" },
+    {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+      "Accept": "application/json",
+      "Accept-Language": "nl-NL,nl;q=0.9",
+      "Referer": "https://www.knhb.nl/"
+    },
+    {
+      "User-Agent": "knhb-app/4.0 (Android)",
+      "Accept": "application/json",
+      "X-App-Version": "4.0.0"
+    }
+  ];
+
+  let knhbClubs = null;
+  let workingHeaders = null;
+  for (const headers of knhbHeaderSets) {
+    try {
+      const r = await fetch(`${KNHB_MC}/clubs`, { headers });
+      out.knhb.clubs_status = r.status;
+      if (r.ok) {
+        const d = await r.json();
+        knhbClubs = d.data || d;
+        out.knhb.clubs_count = Array.isArray(knhbClubs) ? knhbClubs.length : "not-array";
+        workingHeaders = headers;
+        break;
+      } else {
+        out.knhb[`clubs_err_${r.status}`] = (await r.text()).substring(0, 200);
+      }
+    } catch (e) {
+      out.knhb.clubs_exception = e.message;
+    }
+  }
+
+  if (Array.isArray(knhbClubs)) {
+    const gg = knhbClubs.find(c => {
+      const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+      return n.includes("groen") && n.includes("geel");
+    });
+    out.knhb.gg_club = gg || null;
+
+    if (gg) {
+      // Get all teams
+      try {
+        const tr = await fetch(`${KNHB_MC}/clubs/${gg.id}/teams`, { headers: workingHeaders });
+        if (tr.ok) {
+          const td = await tr.json();
+          const teams = td.data || td;
+          out.knhb.teams = Array.isArray(teams) ? teams.map(t => ({ id: t.id, name: t.name, short_name: t.short_name })) : teams;
+
+          // Find H8
+          const h8 = Array.isArray(teams) && teams.find(t => {
+            const n = (t.name || t.short_name || "").toLowerCase().replace(/\s+/g, " ").trim();
+            return n === "heren 8" || n === "h8" || n === "h 8" ||
+              n.endsWith(" h8") || n.endsWith(" h 8") || n.endsWith(" heren 8") ||
+              (n.includes("heren") && /\b8\b/.test(n));
+          });
+          out.knhb.h8_team = h8 || null;
+
+          if (h8) {
+            const tid = h8.id;
+            // Test every plausible match endpoint
+            const eps = [
+              `teams/${tid}/matches/upcoming`,
+              `teams/${tid}/matches/played`,
+              `teams/${tid}/matches`,
+              `teams/${tid}/schedule`,
+              `teams/${tid}/results`,
+              `teams/${tid}`,
+            ];
+            out.knhb.endpoints = {};
+            for (const ep of eps) {
+              try {
+                const er = await fetch(`${KNHB_MC}/${ep}`, { headers: workingHeaders });
+                if (er.ok) {
+                  const ed = await er.json();
+                  const arr = ed.data || ed.matches || (Array.isArray(ed) ? ed : null);
+                  out.knhb.endpoints[ep] = {
+                    status: er.status,
+                    keys: Object.keys(ed),
+                    count: Array.isArray(arr) ? arr.length : null,
+                    // Include first 2 items raw so we can see fields
+                    sample: Array.isArray(arr) ? arr.slice(0, 2) : ed
+                  };
+                } else {
+                  out.knhb.endpoints[ep] = { status: er.status };
+                }
+              } catch (e) {
+                out.knhb.endpoints[ep] = { error: e.message };
+              }
+            }
+          }
+        }
+      } catch (e) {
+        out.knhb.teams_error = e.message;
+      }
+    }
+  }
+
+  // ── HockeyWeerelt (app.hockeyweerelt.nl) ────────────────────
+  try {
+    const { uuid, token } = await hwGetOrCreateDevice(env);
+    out.hw.device = { uuid_preview: uuid.substring(0, 8) + "...", has_token: !!token };
+
+    // Get clubs
+    const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
+    const clubs = clubsData.data || clubsData;
+    out.hw.clubs_count = Array.isArray(clubs) ? clubs.length : typeof clubs;
+
+    const gg = Array.isArray(clubs) && clubs.find(c => {
+      const n = (c.name || "").toLowerCase().replace(/-/g, " ");
+      return n.includes("groen") && n.includes("geel");
+    });
+    out.hw.gg_club = gg ? { id: gg.id, name: gg.name, ref: gg.federation_reference_id } : null;
+
+    if (gg) {
+      const clubRef = gg.federation_reference_id || gg.id;
+      const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+      const teamList = clubData.data?.teams || clubData.teams ||
+        (Array.isArray(clubData.data) ? clubData.data : null) || [];
+      out.hw.teams = Array.isArray(teamList)
+        ? teamList.map(t => ({ id: t.id, name: t.name, short_name: t.short_name }))
+        : "not-array";
+
+      const h8 = Array.isArray(teamList) && teamList.find(t => {
+        const short = (t.short_name || "").toLowerCase().trim();
+        const full = (t.name || t.full_name || "").toLowerCase();
+        return short === "h8" || short === "8" || full.includes("heren 8") || full === "h8";
+      });
+      out.hw.h8_team = h8 ? { id: h8.id, name: h8.name, short_name: h8.short_name } : null;
+
+      if (h8) {
+        const tid = String(h8.id);
+        // Test match endpoints with various status filters
+        const matchEndpoints = [
+          { path: "/matches/team", params: { "team_id[]": tid } },
+          { path: "/matches/team", params: { "team_id[]": tid, "status[]": "played" } },
+          { path: "/matches/team", params: { "team_id[]": tid, "status[]": "official" } },
+          { path: "/matches/team", params: { "team_id[]": tid, "status[]": "finished" } },
+          { path: `/teams/${tid}/matches`, params: {} },
+          { path: `/teams/${tid}/matches/played`, params: {} },
+        ];
+        out.hw.match_endpoints = {};
+        for (const { path, params } of matchEndpoints) {
+          const key = path + (Object.keys(params).length ? "?" + new URLSearchParams(params).toString() : "");
+          try {
+            const mr = await hwRequest(path, params, "GET", uuid, token);
+            const arr = mr.data || mr;
+            const matches = Array.isArray(arr) ? arr : null;
+            const played = matches ? matches.filter(m =>
+              m.status && !["scheduled", "announced"].includes(m.status)
+            ) : null;
+            out.hw.match_endpoints[key] = {
+              total: matches ? matches.length : null,
+              played_count: played ? played.length : null,
+              statuses: matches ? [...new Set(matches.map(m => m.status))] : null,
+              sample_played: played ? played.slice(0, 2) : null,
+              sample_raw: matches ? matches.slice(0, 1) : null,
+              raw_keys: mr ? Object.keys(mr) : null
+            };
+          } catch (e) {
+            out.hw.match_endpoints[key] = { error: e.message };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    out.hw.error = e.message;
+  }
+
+  // ── clubi.hockeyweerelt.nl ───────────────────────────────────
+  const clubiPaths = [
+    "/",
+    "/api",
+    "/api/v1",
+    "/clubs",
+    "/api/clubs",
+    "/graphql",
+    "/doc.html",
+    "/swagger.json",
+    "/openapi.json",
+    "/api/v1/clubs",
+    "/api/v1/teams",
+    "/api/v1/matches",
+  ];
+  out.clubi = {};
+  for (const p of clubiPaths) {
+    try {
+      const r = await fetch(`${CLUBI_BASE}${p}`, {
+        headers: { "Accept": "application/json, text/html", "User-Agent": "ho-krat-app/1.0" }
+      });
+      if (r.ok) {
+        const ct = r.headers.get("content-type") || "";
+        if (ct.includes("json")) {
+          const d = await r.json();
+          out.clubi[p] = { status: r.status, type: "json", keys: Object.keys(d), preview: JSON.stringify(d).substring(0, 300) };
+        } else {
+          const t = await r.text();
+          out.clubi[p] = { status: r.status, type: ct, preview: t.substring(0, 300) };
+        }
+      } else {
+        out.clubi[p] = { status: r.status };
+      }
+    } catch (e) {
+      out.clubi[p] = { error: e.message };
+    }
+  }
+
+  return json(out);
 }
 
 function enrichWithKnhb(event, knhbMatches) {
