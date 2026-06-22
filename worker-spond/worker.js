@@ -835,13 +835,21 @@ async function handleProbeKnhb(env, url) {
     return json(await probeKnhbMatches(provided));
   }
 
-  // Step 1 — clubs (1 fetch)
+  // Step 1 — clubs: use redirect:manual to diagnose the redirect loop
   let clubs;
   try {
     const r = await fetch(`${KNHB_MC}/clubs`, {
+      redirect: 'manual',
       headers: { "User-Agent": "ho-krat-app/1.0", "Accept": "application/json" }
     });
-    if (!r.ok) return json({ step: "clubs", status: r.status, body: (await r.text()).substring(0, 300) });
+    if (r.status >= 300 && r.status < 400) {
+      // Redirect — show diagnostic info so we know where it's going
+      const location = r.headers.get('Location') || r.headers.get('location') || '';
+      const hdrs = {};
+      for (const [k, v] of r.headers.entries()) hdrs[k] = v;
+      return json({ step: "clubs_redirect", status: r.status, location, all_headers: hdrs });
+    }
+    if (!r.ok) return json({ step: "clubs", status: r.status, body: (await r.text()).substring(0, 500) });
     clubs = ((await r.json()).data || []);
   } catch (e) {
     return json({ step: "clubs", error: e.message });
@@ -965,31 +973,42 @@ async function handleProbeHw(env, url) {
 
     if (env.LINEUP_KV) await env.LINEUP_KV.put("hw_team_id", String(h8.id), { expirationTtl: 86400 * 30 });
 
-    // fetch 3: matches
+    // fetch 3+: matches (multiple attempts)
     const matchResult = await probeHwMatches(String(h8.id), uuid, token);
-    return json({ club: gg.name, team: h8.name, team_id: h8.id, ...matchResult });
+    return json({ club: gg.name, team: h8.name, team_id: h8.id, team_obj: h8, ...matchResult });
   } catch (e) {
     return json({ error: e.message });
   }
 }
 
 async function probeHwMatches(teamId, uuid, token) {
+  const results = {};
+
+  // Attempt 1: basic — often returns [] in off-season
   try {
     const data = await hwRequest("/matches/team", { "team_id[]": teamId }, "GET", uuid, token);
     const arr = data.data || data;
-    if (!Array.isArray(arr)) return { matches_type: typeof arr, raw: JSON.stringify(arr).substring(0, 300) };
-    const now = new Date();
-    const played = arr.filter(m => m.date && new Date(m.date) < now && m.status !== "scheduled" && m.status !== "announced");
-    return {
-      total: arr.length,
-      statuses: [...new Set(arr.map(m => m.status))],
-      played_count: played.length,
-      sample_played: played.slice(0, 2),
-      sample_all: arr.slice(0, 1)
+    results.basic = {
+      count: Array.isArray(arr) ? arr.length : "not-array",
+      raw_preview: JSON.stringify(data).substring(0, 400)
     };
-  } catch (e) {
-    return { matches_error: e.message };
-  }
+  } catch (e) { results.basic = { error: e.message }; }
+
+  // Attempt 2: filter by status=played
+  try {
+    const data = await hwRequest("/matches/team", { "team_id[]": teamId, "status[]": "played" }, "GET", uuid, token);
+    const arr = data.data || data;
+    const matches = Array.isArray(arr) ? arr : [];
+    results.status_played = { count: matches.length, sample: matches.slice(0, 2) };
+  } catch (e) { results.status_played = { error: e.message }; }
+
+  // Attempt 3: GET /teams/{id} — see team fields and any linked competition/season data
+  try {
+    const data = await hwRequest(`/teams/${teamId}`, {}, "GET", uuid, token);
+    results.team_detail = { keys: Object.keys(data), preview: JSON.stringify(data).substring(0, 800) };
+  } catch (e) { results.team_detail = { error: e.message }; }
+
+  return { team_id: teamId, ...results };
 }
 
 // ---------- Clubi probe (1 HTTP fetch) ----------
@@ -1002,9 +1021,10 @@ async function handleProbeClubi(url) {
     });
     const ct = r.headers.get("content-type") || "";
     const body = await r.text();
+    const limit = parseInt(url.searchParams.get("limit") || "5000");
     return json({
       url: targetUrl, status: r.status, content_type: ct,
-      preview: body.substring(0, 1000)
+      preview: body.substring(0, limit)
     });
   } catch (e) {
     return json({ url: targetUrl, error: e.message });
