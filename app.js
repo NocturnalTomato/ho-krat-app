@@ -451,33 +451,88 @@ function calculateChances(data) {
 }
 
 function renderEvent(data, chances) {
-  const event = data.upcomingEvent || {};
+  const primaryEvent = data.currentEvent || data.upcomingEvent || null;
+  const secondaryEvent =
+    data.nextEvent && primaryEvent && data.nextEvent.id !== primaryEvent.id
+      ? data.nextEvent
+      : null;
+
+  renderPrimaryEventCard(data, primaryEvent, chances);
+  renderNextEventCard(data, secondaryEvent);
+}
+
+function renderPrimaryEventCard(data, event, chances) {
+  const card = document.getElementById("eventCard");
+  if (!card) return;
+
+  if (!event) {
+    card.style.display = "none";
+    return;
+  }
+
   const counts = event.counts || {};
   const start = new Date(event.startTimestamp);
-  const end = new Date(event.endTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
 
-  document.getElementById("eventCard").style.display = "block";
-  document.getElementById("eventTitle").textContent =
-    `${event.name || "Onbekend event"} - ${data.team || "HO"}`;
+  card.style.display = "block";
 
-  document.getElementById("eventMeta").innerHTML = `
-    ${formatDate(start)} · ${formatTime(start)}-${formatTime(end)}
+  setText("eventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
+
+  setHtml("eventMeta", `
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
     <br>
     Locatie: ${event.location || "Nog geen locatie"}
     <br>
     Laatst bijgewerkt: ${formatDateTime(new Date(data.updatedAt))}
-  `;
+  `);
 
-  document.getElementById("attendingCount").textContent = counts.attending ?? "-";
-  document.getElementById("declinedCount").textContent = counts.declined ?? "-";
-  document.getElementById("unansweredCount").textContent = counts.unanswered ?? "-";
+  setText("attendingCount", counts.attending ?? "-");
+  setText("declinedCount", counts.declined ?? "-");
+  setText("unansweredCount", counts.unanswered ?? "-");
 
-  setChance("second", chances.secondCrate);
-  setChance("escalation", chances.escalation);
+  if (chances) {
+    setChance("second", chances.secondCrate);
+    setChance("escalation", chances.escalation);
+  }
 
-  document.getElementById("attendingNames").textContent = listNames(event.attending);
-  document.getElementById("declinedNames").textContent = listNames(event.declined);
-  document.getElementById("unansweredNames").textContent = listNames(event.unanswered);
+  setText("attendingNames", listNames(event.attending));
+  setText("declinedNames", listNames(event.declined));
+  setText("unansweredNames", listNames(event.unanswered));
+  setText("lastMinuteDeclinedNames", listLastMinuteDeclined(event.lastMinuteDeclined));
+}
+
+function renderNextEventCard(data, event) {
+  const card = document.getElementById("nextEventCard");
+  if (!card) return;
+
+  if (!event) {
+    card.style.display = "none";
+    return;
+  }
+
+  const counts = event.counts || {};
+  const start = new Date(event.startTimestamp);
+  const end = event.endTimestamp ? new Date(event.endTimestamp) : null;
+
+  card.style.display = "block";
+
+  setText("nextEventTitle", `${event.name || "Onbekend event"} - ${data.team || "HO"}`);
+
+  setHtml("nextEventMeta", `
+    ${formatDate(start)} · ${formatTime(start)}${end ? "-" + formatTime(end) : ""}
+    <br>
+    Locatie: ${event.location || "Nog geen locatie"}
+  `);
+
+  setText("nextEventCountdown", formatCountdown(start));
+
+  setText("nextAttendingCount", counts.attending ?? "-");
+  setText("nextDeclinedCount", counts.declined ?? "-");
+  setText("nextUnansweredCount", counts.unanswered ?? "-");
+
+  setText("nextAttendingNames", listNames(event.attending));
+  setText("nextDeclinedNames", listNames(event.declined));
+  setText("nextUnansweredNames", listNames(event.unanswered));
 }
 
 /* =========================
@@ -680,9 +735,41 @@ function closeKratflap() {
    HELPERS
 ========================= */
 
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+function setHtml(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = value;
+}
+
 function setChance(id, value) {
-  document.getElementById(id + "Chance").textContent = value + "%";
-  document.getElementById(id + "Bar").style.width = value + "%";
+  setText(id + "Chance", value + "%");
+  const bar = document.getElementById(id + "Bar");
+  if (bar) bar.style.width = value + "%";
+}
+
+function listLastMinuteDeclined(items) {
+  if (!items || !items.length) return "-";
+  return items.map(item => (item.name || item)).join(", ");
+}
+
+function formatCountdown(start) {
+  if (!(start instanceof Date) || Number.isNaN(start.getTime())) return "-";
+
+  const diffMs = start.getTime() - Date.now();
+  if (diffMs <= 0) return "Bezig / vandaag";
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  if (days > 0) return `Nog ${days}d ${hours}u`;
+  if (hours > 0) return `Nog ${hours}u ${minutes}m`;
+  return `Nog ${minutes}m`;
 }
 
 function startCountdown() {

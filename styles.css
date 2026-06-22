@@ -620,6 +620,15 @@ summary {
   margin-top: 0;
 }
 
+.small-label {
+  color: #a1a1a6;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
 .next-event-card {
   cursor: pointer;
 }

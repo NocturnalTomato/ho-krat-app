@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HO Krat App</title>
-  <link rel="stylesheet" href="styles.css?v=4" />
-  <script src="app.js?v=1004" defer></script>
+  <link rel="stylesheet" href="styles.css?v=5" />
+  <script src="app.js?v=1005" defer></script>
 </head>
 
 <body>
@@ -90,9 +90,64 @@
             <h4>Nog niks gezegd</h4>
             <div class="names" id="unansweredNames">-</div>
           </div>
+
+          <div>
+            <h4>Last minute afgehaakt</h4>
+            <div class="names" id="lastMinuteDeclinedNames">-</div>
+          </div>
         </div>
       </details>
     </div>
+
+<details class="event-card next-event-card" id="nextEventCard" style="display:none;">
+  <summary class="next-event-summary">
+    <div>
+      <div class="small-label">DAARNA</div>
+      <div class="event-title" id="nextEventTitle"></div>
+      <div class="event-meta compact" id="nextEventMeta"></div>
+    </div>
+  </summary>
+
+  <div class="countdown" id="nextEventCountdown"></div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="nextAttendingCount">-</div>
+      <div class="stat-label">KOMT</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-value" id="nextDeclinedCount">-</div>
+      <div class="stat-label">NIET</div>
+    </div>
+
+    <div class="stat">
+      <div class="stat-value" id="nextUnansweredCount">-</div>
+      <div class="stat-label">LAF</div>
+    </div>
+  </div>
+
+  <details>
+    <summary>Wie dan?</summary>
+
+    <div class="people">
+      <div>
+        <h4>Komt</h4>
+        <div class="names" id="nextAttendingNames">-</div>
+      </div>
+
+      <div>
+        <h4>Komt niet</h4>
+        <div class="names" id="nextDeclinedNames">-</div>
+      </div>
+
+      <div>
+        <h4>Nog niks gezegd</h4>
+        <div class="names" id="nextUnansweredNames">-</div>
+      </div>
+    </div>
+  </details>
+</details>
 
     <div class="splitser-card" id="splitserCard" style="display:none;">
       <div class="splitser-header">
