@@ -26,6 +26,7 @@ async function init() {
   loadEventData();
   loadSplitserData();
   loadLineup();
+  loadStats();
 }
 
 /* =========================
@@ -946,7 +947,14 @@ function formatDateTime(date) {
    LINEUP OPSTELLING
 ========================= */
 
+const STATS_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/stats";
 const LINEUP_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/lineup";
+
+let statsData = { matches: [] };
+let statsPassword = null;
+let statsEditorMatchId = null; // which match is being edited
+let statsViewingSeason = null; // which season year is shown
+let expandedStatsCharts = [];  // chart instances to destroy on close
 
 let lineupData = { formation: "4-3-3", positions: {}, extraPlayers: [] };
 let lineupEditMode = false;
@@ -1431,6 +1439,760 @@ async function lineupSave() {
     statusEl.textContent = "Opslaan mislukt: " + err.message;
     statusEl.style.color = "#ff5c5c";
   }
+}
+
+/* =========================
+   MATCH STATISTICS
+========================= */
+
+function getSeasonYear(dateStr) {
+  const d = dateStr ? new Date(dateStr + "T12:00:00") : new Date();
+  const y = d.getFullYear();
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return (m > 7 || (m === 7 && day >= 15)) ? y : y - 1;
+}
+
+function seasonLabel(year) {
+  return `${year}–${year + 1}`;
+}
+
+function getAvailableSeasons() {
+  const years = new Set(statsData.matches.map(m => m.seasonYear));
+  years.add(getSeasonYear());
+  return [...years].sort((a, b) => b - a);
+}
+
+function getMatchesForSeason(year) {
+  return statsData.matches.filter(m => m.seasonYear === year);
+}
+
+function aggregateSeasonStats(matches) {
+  const players = {};
+
+  function ensure(name) {
+    if (!name) return null;
+    if (!players[name]) {
+      players[name] = { name, goals: 0, ownGoals: 0, assists: 0, geleKaart: 0, groeneKaart: 0, motm: 0, matchIds: [] };
+    }
+    return players[name];
+  }
+
+  for (const match of matches) {
+    const touched = new Set();
+
+    if (match.motm) { const p = ensure(match.motm); if (p) { p.motm++; touched.add(match.motm); } }
+
+    for (const g of (match.goals || [])) {
+      const p = ensure(g.player);
+      if (p) { p.goals += (g.count || 1); touched.add(g.player); }
+    }
+    for (const g of (match.ownGoals || [])) {
+      const p = ensure(g.player);
+      if (p) { p.ownGoals += (g.count || 1); touched.add(g.player); }
+    }
+    for (const a of (match.assists || [])) {
+      const p = ensure(a.player);
+      if (p) { p.assists += (a.count || 1); touched.add(a.player); }
+    }
+    for (const name of (match.geleKaart || [])) {
+      const p = ensure(name);
+      if (p) { p.geleKaart++; touched.add(name); }
+    }
+    for (const name of (match.groeneKaart || [])) {
+      const p = ensure(name);
+      if (p) { p.groeneKaart++; touched.add(name); }
+    }
+
+    for (const name of touched) {
+      const p = players[name];
+      if (p && !p.matchIds.includes(match.matchId)) p.matchIds.push(match.matchId);
+    }
+  }
+
+  return Object.values(players).sort((a, b) => {
+    if (b.goals !== a.goals) return b.goals - a.goals;
+    if (b.assists !== a.assists) return b.assists - a.assists;
+    return a.name.localeCompare(b.name);
+  });
+}
+
+async function loadStats() {
+  try {
+    const res = await fetch(STATS_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    statsData = await res.json();
+    if (!Array.isArray(statsData.matches)) statsData.matches = [];
+  } catch (err) {
+    console.error("STATS LOAD ERROR:", err);
+    statsData = { matches: [] };
+  }
+  renderStatsCard();
+}
+
+function renderStatsCard() {
+  const seasons = getAvailableSeasons();
+  const selectEl = document.getElementById("statsSeasonSelect");
+  if (selectEl) {
+    const prev = selectEl.value;
+    selectEl.innerHTML = "";
+    for (const y of seasons) {
+      const opt = document.createElement("option");
+      opt.value = y;
+      opt.textContent = seasonLabel(y);
+      selectEl.appendChild(opt);
+    }
+    if (prev && seasons.includes(Number(prev))) selectEl.value = prev;
+  }
+
+  if (statsViewingSeason === null) statsViewingSeason = seasons[0] || getSeasonYear();
+  if (selectEl) selectEl.value = statsViewingSeason;
+
+  const matches = getMatchesForSeason(statsViewingSeason);
+  const players = aggregateSeasonStats(matches);
+  const body = document.getElementById("statsSeasonBody");
+  if (!body) return;
+
+  if (matches.length === 0) {
+    body.innerHTML = `<div class="lineup-meta" style="text-align:center;padding:16px 0;">
+      Nog geen statistieken voor ${seasonLabel(statsViewingSeason)}.<br>
+      Klik op <strong>Aanpassen</strong> om de eerste wedstrijd in te voeren.
+    </div>`;
+    return;
+  }
+
+  let html = `<div class="stats-table">`;
+  html += `<div class="stats-table-head">
+    <span>Speler</span><span title="Doelpunten">⚽</span><span title="Assists">🎯</span><span title="Man of the Match">⭐</span><span title="Gele kaart">🟨</span><span title="Groene kaart">🟩</span>
+  </div>`;
+
+  for (const p of players) {
+    const hasStats = p.goals || p.assists || p.motm || p.geleKaart || p.groeneKaart || p.ownGoals;
+    if (!hasStats) continue;
+    html += `<div class="stats-table-row" onclick="openExpandedStats('${escapeHtml(p.name)}')">
+      <span class="stats-player-name">${escapeHtml(p.name)}</span>
+      <span class="stats-cell">${p.goals || "-"}</span>
+      <span class="stats-cell">${p.assists || "-"}</span>
+      <span class="stats-cell">${p.motm || "-"}</span>
+      <span class="stats-cell">${p.geleKaart || "-"}</span>
+      <span class="stats-cell">${p.groeneKaart || "-"}</span>
+    </div>`;
+  }
+
+  html += `</div>`;
+  html += `<div class="stats-matches-count">${matches.length} wedstrijd${matches.length !== 1 ? "en" : ""} · Tik een speler voor uitgebreide stats</div>`;
+
+  body.innerHTML = html;
+}
+
+function statsSeasonChanged() {
+  const sel = document.getElementById("statsSeasonSelect");
+  if (sel) statsViewingSeason = Number(sel.value);
+  renderStatsCard();
+}
+
+/* --- Stats password --- */
+
+function statsOpenEditor() {
+  if (statsPassword) {
+    openStatsEditorSheet();
+  } else if (lineupPassword) {
+    // reuse lineup password if already authenticated this session
+    statsPassword = lineupPassword;
+    openStatsEditorSheet();
+  } else {
+    const popup = document.getElementById("statsPasswordPopup");
+    if (!popup) return;
+    document.getElementById("statsPasswordInput").value = "";
+    document.getElementById("statsPasswordError").textContent = "";
+    popup.style.display = "flex";
+    setTimeout(() => document.getElementById("statsPasswordInput").focus(), 80);
+  }
+}
+
+function statsPasswordCancel() {
+  document.getElementById("statsPasswordPopup").style.display = "none";
+}
+
+async function statsPasswordSubmit() {
+  const pw = document.getElementById("statsPasswordInput").value;
+  const errorEl = document.getElementById("statsPasswordError");
+  if (!pw) { errorEl.textContent = "Vul een wachtwoord in."; return; }
+  errorEl.textContent = "Controleren…";
+
+  try {
+    const res = await fetch(STATS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ password: pw, matchStats: null })
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = result.error || "Onjuist wachtwoord.";
+      return;
+    }
+    statsPassword = pw;
+    document.getElementById("statsPasswordPopup").style.display = "none";
+    openStatsEditorSheet();
+  } catch (err) {
+    errorEl.textContent = "Fout: " + err.message;
+  }
+}
+
+/* --- Stats editor sheet --- */
+
+function openStatsEditorSheet() {
+  const sheet = document.getElementById("statsEditorSheet");
+  if (!sheet) return;
+
+  // Default: most recent match or new
+  statsEditorMatchId = statsData.matches.length > 0 ? statsData.matches[0].matchId : "__new__";
+  renderStatsEditor();
+
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeStatsEditor() {
+  const sheet = document.getElementById("statsEditorSheet");
+  if (!sheet) return;
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function statsGetAllPlayers() {
+  const fromSpond = eventData?.members || [];
+  const seenNames = new Set(fromSpond);
+  const extra = [];
+  for (const m of statsData.matches) {
+    const names = [
+      m.motm,
+      ...(m.goals || []).map(g => g.player),
+      ...(m.ownGoals || []).map(g => g.player),
+      ...(m.assists || []).map(a => a.player),
+      ...(m.geleKaart || []),
+      ...(m.groeneKaart || [])
+    ].filter(Boolean);
+    for (const n of names) {
+      if (!seenNames.has(n)) { extra.push(n); seenNames.add(n); }
+    }
+  }
+  return [...fromSpond, ...extra].sort();
+}
+
+function renderStatsEditor() {
+  const body = document.getElementById("statsEditorBody");
+  if (!body) return;
+
+  const sortedMatches = [...statsData.matches].sort((a, b) => b.date.localeCompare(a.date));
+  const allPlayers = statsGetAllPlayers();
+
+  const currentMatch = statsEditorMatchId === "__new__"
+    ? { matchId: "__new__", date: new Date().toISOString().slice(0, 10), opponent: "", motm: "", goals: [], ownGoals: [], assists: [], geleKaart: [], groeneKaart: [] }
+    : (statsData.matches.find(m => m.matchId === statsEditorMatchId) || { matchId: "__new__", date: new Date().toISOString().slice(0, 10), opponent: "", motm: "", goals: [], ownGoals: [], assists: [], geleKaart: [], groeneKaart: [] });
+
+  const matchOptions = sortedMatches.map(m =>
+    `<option value="${escapeHtml(m.matchId)}" ${m.matchId === statsEditorMatchId ? "selected" : ""}>
+      ${escapeHtml(m.date)} – ${escapeHtml(m.opponent || "Onbekend")}
+    </option>`
+  ).join("");
+
+  const playerDatalist = `<datalist id="statsPlayerList">${allPlayers.map(n => `<option value="${escapeHtml(n)}">`).join("")}</datalist>`;
+
+  function playerChipsHtml(label, fieldId, currentValues, multi = false) {
+    const valStr = Array.isArray(currentValues) ? JSON.stringify(currentValues) : JSON.stringify([]);
+    return `
+      <div class="stats-field-section">
+        <div class="stats-field-label">${label}</div>
+        <div class="stats-chips-wrap" id="chips_${fieldId}"></div>
+        <div class="stats-add-row">
+          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler toevoegen…" id="input_${fieldId}" autocomplete="off" />
+          ${multi ? `<input class="stats-count-input" type="number" min="1" max="20" value="1" id="count_${fieldId}" />` : ""}
+          <button class="mini-button" type="button" onclick="statsAddChip('${fieldId}', ${multi})">+</button>
+        </div>
+      </div>`;
+  }
+
+  body.innerHTML = `
+    ${playerDatalist}
+    <div class="stats-editor-inner">
+      <div class="stats-field-section">
+        <div class="stats-field-label">Wedstrijd</div>
+        <select class="stats-match-select" id="statsMatchSelect" onchange="statsSelectMatch(this.value)">
+          <option value="__new__" ${statsEditorMatchId === "__new__" ? "selected" : ""}>+ Nieuwe wedstrijd</option>
+          ${matchOptions}
+        </select>
+      </div>
+
+      <div class="stats-field-section" id="statsMatchMeta">
+        <div class="stats-field-label">Datum</div>
+        <input class="lineup-popup-input stats-date-input" type="date" id="statsMatchDate" value="${escapeHtml(currentMatch.date)}" />
+        <div class="stats-field-label" style="margin-top:10px;">Tegenstander</div>
+        <input class="lineup-popup-input stats-text-input" type="text" id="statsMatchOpponent" value="${escapeHtml(currentMatch.opponent || "")}" placeholder="bv. Kampong Heren 7" autocomplete="off" />
+      </div>
+
+      <div class="stats-field-section">
+        <div class="stats-field-label">Man of the Match ⭐</div>
+        <div class="stats-chips-wrap" id="chips_motm"></div>
+        <div class="stats-add-row">
+          <input class="stats-player-input" type="text" list="statsPlayerList" placeholder="Speler…" id="input_motm" autocomplete="off" />
+          <button class="mini-button" type="button" onclick="statsSetMotm()">Stel in</button>
+        </div>
+      </div>
+
+      ${playerChipsHtml("Doelpunten ⚽", "goals", currentMatch.goals, true)}
+      ${playerChipsHtml("Eigen doelpunten 😬", "ownGoals", currentMatch.ownGoals, true)}
+      ${playerChipsHtml("Assists 🎯", "assists", currentMatch.assists, true)}
+      ${playerChipsHtml("Gele kaart 🟨", "geleKaart", currentMatch.geleKaart, false)}
+      ${playerChipsHtml("Groene kaart 🟩", "groeneKaart", currentMatch.groeneKaart, false)}
+
+      <button class="lineup-save-btn stats-save-btn" type="button" onclick="statsSaveMatch()">Opslaan</button>
+      <div class="lineup-status" id="statsEditorStatus"></div>
+    </div>
+  `;
+
+  // Populate chips from current match data
+  statsRenderMotmChip(currentMatch.motm);
+  statsRenderCountChips("goals", currentMatch.goals || []);
+  statsRenderCountChips("ownGoals", currentMatch.ownGoals || []);
+  statsRenderCountChips("assists", currentMatch.assists || []);
+  statsRenderNameChips("geleKaart", currentMatch.geleKaart || []);
+  statsRenderNameChips("groeneKaart", currentMatch.groeneKaart || []);
+}
+
+function statsSelectMatch(val) {
+  statsEditorMatchId = val;
+  renderStatsEditor();
+}
+
+function statsRenderMotmChip(name) {
+  const wrap = document.getElementById("chips_motm");
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  if (!name) return;
+  const chip = document.createElement("div");
+  chip.className = "stats-chip motm-chip";
+  chip.textContent = name + " ⭐";
+  chip.onclick = () => { statsRenderMotmChip(null); };
+  wrap.appendChild(chip);
+  const input = document.getElementById("input_motm");
+  if (input) input.value = "";
+}
+
+function statsSetMotm() {
+  const input = document.getElementById("input_motm");
+  if (!input || !input.value.trim()) return;
+  statsRenderMotmChip(input.value.trim());
+}
+
+function statsRenderCountChips(fieldId, items) {
+  const wrap = document.getElementById("chips_" + fieldId);
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const item of items) {
+    statsAddCountChipEl(wrap, fieldId, item.player, item.count || 1);
+  }
+}
+
+function statsAddCountChipEl(wrap, fieldId, player, count) {
+  const chip = document.createElement("div");
+  chip.className = "stats-chip";
+  chip.dataset.player = player;
+  chip.dataset.count = count;
+  chip.innerHTML = `<span>${escapeHtml(player)}</span><span class="stats-chip-count">${count}x</span><span class="stats-chip-remove">×</span>`;
+  chip.querySelector(".stats-chip-remove").onclick = () => chip.remove();
+  chip.querySelector(".stats-chip-count").onclick = () => {
+    const cur = parseInt(chip.dataset.count) || 1;
+    const next = cur < 20 ? cur + 1 : 1;
+    chip.dataset.count = next;
+    chip.querySelector(".stats-chip-count").textContent = next + "x";
+  };
+  wrap.appendChild(chip);
+}
+
+function statsAddChip(fieldId, withCount) {
+  const input = document.getElementById("input_" + fieldId);
+  const wrap = document.getElementById("chips_" + fieldId);
+  if (!input || !wrap) return;
+  const name = input.value.trim();
+  if (!name) return;
+
+  if (withCount) {
+    const countInput = document.getElementById("count_" + fieldId);
+    const count = parseInt(countInput?.value) || 1;
+    // Check if player already exists — update count instead
+    const existing = wrap.querySelector(`[data-player="${CSS.escape(name)}"]`);
+    if (existing) {
+      const cur = parseInt(existing.dataset.count) || 1;
+      const next = Math.min(20, cur + count);
+      existing.dataset.count = next;
+      existing.querySelector(".stats-chip-count").textContent = next + "x";
+    } else {
+      statsAddCountChipEl(wrap, fieldId, name, count);
+    }
+  } else {
+    // Toggle (no duplicates)
+    const existing = [...wrap.querySelectorAll(".stats-chip")].find(c => c.dataset.player === name);
+    if (existing) { existing.remove(); }
+    else {
+      const chip = document.createElement("div");
+      chip.className = "stats-chip";
+      chip.dataset.player = name;
+      chip.textContent = name;
+      const rem = document.createElement("span");
+      rem.className = "stats-chip-remove";
+      rem.textContent = " ×";
+      rem.onclick = () => chip.remove();
+      chip.appendChild(rem);
+      wrap.appendChild(chip);
+    }
+  }
+
+  input.value = "";
+  const countInput = document.getElementById("count_" + fieldId);
+  if (countInput) countInput.value = 1;
+}
+
+function statsRenderNameChips(fieldId, names) {
+  const wrap = document.getElementById("chips_" + fieldId);
+  if (!wrap) return;
+  wrap.innerHTML = "";
+  for (const name of names) {
+    const chip = document.createElement("div");
+    chip.className = "stats-chip";
+    chip.dataset.player = name;
+    chip.textContent = name;
+    const rem = document.createElement("span");
+    rem.className = "stats-chip-remove";
+    rem.textContent = " ×";
+    rem.onclick = () => chip.remove();
+    chip.appendChild(rem);
+    wrap.appendChild(chip);
+  }
+}
+
+function statsReadChipsCount(fieldId) {
+  const wrap = document.getElementById("chips_" + fieldId);
+  if (!wrap) return [];
+  return [...wrap.querySelectorAll(".stats-chip")].map(c => ({
+    player: c.dataset.player,
+    count: parseInt(c.dataset.count) || 1
+  })).filter(x => x.player);
+}
+
+function statsReadChipsNames(fieldId) {
+  const wrap = document.getElementById("chips_" + fieldId);
+  if (!wrap) return [];
+  return [...wrap.querySelectorAll(".stats-chip")].map(c => c.dataset.player).filter(Boolean);
+}
+
+function statsReadMotm() {
+  const wrap = document.getElementById("chips_motm");
+  if (!wrap) return "";
+  const chip = wrap.querySelector(".stats-chip");
+  return chip ? (chip.dataset.player || chip.textContent.replace(" ⭐", "").trim()) : "";
+}
+
+async function statsSaveMatch() {
+  const statusEl = document.getElementById("statsEditorStatus");
+  const date = document.getElementById("statsMatchDate")?.value;
+  const opponent = document.getElementById("statsMatchOpponent")?.value?.trim() || "";
+
+  if (!date) { statusEl.textContent = "Kies een datum."; statusEl.style.color = "#ff5c5c"; return; }
+
+  const matchId = date; // use date as ID
+  const seasonYear = getSeasonYear(date);
+  const motm = statsReadMotm();
+  const goals = statsReadChipsCount("goals");
+  const ownGoals = statsReadChipsCount("ownGoals");
+  const assists = statsReadChipsCount("assists");
+  const geleKaart = statsReadChipsNames("geleKaart");
+  const groeneKaart = statsReadChipsNames("groeneKaart");
+
+  const matchStats = { matchId, date, opponent, seasonYear, motm, goals, ownGoals, assists, geleKaart, groeneKaart };
+
+  statusEl.textContent = "Opslaan…";
+  statusEl.style.color = "#ffcc00";
+
+  try {
+    const res = await fetch(STATS_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ password: statsPassword, matchStats })
+    });
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || `HTTP ${res.status}`);
+
+    statusEl.textContent = "Opgeslagen!";
+    statusEl.style.color = "#46d369";
+
+    // Update local data
+    const idx = statsData.matches.findIndex(m => m.matchId === matchId);
+    const entry = { ...matchStats, updatedAt: new Date().toISOString() };
+    if (idx >= 0) statsData.matches[idx] = entry; else statsData.matches.push(entry);
+    statsData.matches.sort((a, b) => b.date.localeCompare(a.date));
+
+    statsEditorMatchId = matchId;
+    statsViewingSeason = seasonYear;
+    renderStatsCard();
+
+    setTimeout(() => { statusEl.textContent = ""; statusEl.style.color = ""; }, 2500);
+  } catch (err) {
+    statusEl.textContent = "Fout: " + err.message;
+    statusEl.style.color = "#ff5c5c";
+    if (err.message.includes("wachtwoord") || err.message.includes("401")) statsPassword = null;
+  }
+}
+
+/* --- Expanded stats --- */
+
+function openExpandedStats(playerName) {
+  const sheet = document.getElementById("statsExpandedSheet");
+  if (!sheet) return;
+
+  document.getElementById("expandedStatsTitle").textContent = playerName;
+
+  renderExpandedStats(playerName);
+
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeExpandedStats() {
+  const sheet = document.getElementById("statsExpandedSheet");
+  if (!sheet) return;
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+
+  for (const ch of expandedStatsCharts) {
+    try { ch.destroy(); } catch {}
+  }
+  expandedStatsCharts = [];
+}
+
+function renderExpandedStats(playerName) {
+  const body = document.getElementById("statsExpandedBody");
+  if (!body) return;
+
+  const currentSeason = statsViewingSeason || getSeasonYear();
+  const seasons = getAvailableSeasons();
+
+  const seasonMatches = getMatchesForSeason(currentSeason);
+  const allMatches = [...statsData.matches].sort((a, b) => a.date.localeCompare(b.date));
+
+  function playerGoals(m) { return (m.goals || []).filter(g => g.player === playerName).reduce((s, g) => s + (g.count || 1), 0); }
+  function playerAssists(m) { return (m.assists || []).filter(a => a.player === playerName).reduce((s, a) => s + (a.count || 1), 0); }
+  function playerOwnGoals(m) { return (m.ownGoals || []).filter(g => g.player === playerName).reduce((s, g) => s + (g.count || 1), 0); }
+  function playerGeel(m) { return (m.geleKaart || []).includes(playerName) ? 1 : 0; }
+  function playerGroen(m) { return (m.groeneKaart || []).includes(playerName) ? 1 : 0; }
+  function playerMotm(m) { return m.motm === playerName ? 1 : 0; }
+  function playerInMatch(m) {
+    return playerGoals(m) + playerAssists(m) + playerOwnGoals(m) + playerGeel(m) + playerGroen(m) + playerMotm(m) > 0;
+  }
+
+  const seasonGoals = seasonMatches.reduce((s, m) => s + playerGoals(m), 0);
+  const seasonAssists = seasonMatches.reduce((s, m) => s + playerAssists(m), 0);
+  const seasonMotm = seasonMatches.reduce((s, m) => s + playerMotm(m), 0);
+  const seasonGeel = seasonMatches.reduce((s, m) => s + playerGeel(m), 0);
+  const seasonGroen = seasonMatches.reduce((s, m) => s + playerGroen(m), 0);
+  const seasonOwnGoals = seasonMatches.reduce((s, m) => s + playerOwnGoals(m), 0);
+  const seasonGames = seasonMatches.filter(m => playerInMatch(m)).length;
+
+  // All-time stats
+  const allGoals = allMatches.reduce((s, m) => s + playerGoals(m), 0);
+  const allAssists = allMatches.reduce((s, m) => s + playerAssists(m), 0);
+  const allMotm = allMatches.reduce((s, m) => s + playerMotm(m), 0);
+
+  // Per-match arrays for charts (current season, sorted by date)
+  const smSorted = [...seasonMatches].sort((a, b) => a.date.localeCompare(b.date));
+  const matchLabels = smSorted.map(m => {
+    const d = new Date(m.date + "T12:00:00");
+    return d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  });
+  const goalsPerMatch = smSorted.map(m => playerGoals(m));
+  const assistsPerMatch = smSorted.map(m => playerAssists(m));
+  const cumulativeGoals = goalsPerMatch.reduce((acc, v) => { acc.push((acc.at(-1) || 0) + v); return acc; }, []);
+  const cumulativeAssists = assistsPerMatch.reduce((acc, v) => { acc.push((acc.at(-1) || 0) + v); return acc; }, []);
+
+  // Season-by-season for all-time chart
+  const seasonGoalsHistory = seasons.map(y => {
+    const ms = getMatchesForSeason(y);
+    return { season: seasonLabel(y), goals: ms.reduce((s, m) => s + playerGoals(m), 0), assists: ms.reduce((s, m) => s + playerAssists(m), 0) };
+  }).reverse();
+
+  const formMatches = smSorted.slice(-5);
+  const formHtml = formMatches.length === 0 ? '<span style="color:#a1a1a6">Geen data</span>' : formMatches.map(m => {
+    const g = playerGoals(m);
+    const a = playerAssists(m);
+    const motm = playerMotm(m);
+    let icon = "⬜";
+    if (motm) icon = "⭐";
+    else if (g > 0 && a > 0) icon = "🔥";
+    else if (g > 0) icon = "⚽";
+    else if (a > 0) icon = "🎯";
+    else if (playerGeel(m)) icon = "🟨";
+    else if (playerGroen(m)) icon = "🟩";
+    else if (playerInMatch(m)) icon = "🏑";
+    const label = new Date(m.date + "T12:00:00").toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+    return `<div class="form-dot" title="${label}: ${g}G ${a}A">${icon}</div>`;
+  }).join("");
+
+  body.innerHTML = `
+    <div class="expanded-stats-body">
+      <div class="expanded-season-label">${seasonLabel(currentSeason)}</div>
+
+      <div class="expanded-big-stats">
+        <div class="expanded-big-stat"><div class="expanded-big-num">${seasonGoals}</div><div class="expanded-big-label">GOALS</div></div>
+        <div class="expanded-big-stat"><div class="expanded-big-num">${seasonAssists}</div><div class="expanded-big-label">ASSISTS</div></div>
+        <div class="expanded-big-stat"><div class="expanded-big-num">${seasonMotm}</div><div class="expanded-big-label">MOTM ⭐</div></div>
+        <div class="expanded-big-stat"><div class="expanded-big-num">${seasonGames}</div><div class="expanded-big-label">WEDSTR.</div></div>
+      </div>
+
+      ${(seasonGeel || seasonGroen || seasonOwnGoals) ? `<div class="expanded-cards-row">
+        ${seasonGeel ? `<span class="expanded-card-badge yellow">🟨 ${seasonGeel}×</span>` : ""}
+        ${seasonGroen ? `<span class="expanded-card-badge green">🟩 ${seasonGroen}×</span>` : ""}
+        ${seasonOwnGoals ? `<span class="expanded-card-badge own">😬 ${seasonOwnGoals} EG</span>` : ""}
+      </div>` : ""}
+
+      <div class="expanded-section-title">Vorm (laatste 5)</div>
+      <div class="form-row">${formHtml}</div>
+
+      ${smSorted.length >= 2 ? `
+      <div class="expanded-section-title">Goals & Assists — ${seasonLabel(currentSeason)}</div>
+      <div class="expanded-chart-wrap"><canvas id="chartGoalsAssists"></canvas></div>
+
+      <div class="expanded-section-title">Cumulatief dit seizoen</div>
+      <div class="expanded-chart-wrap"><canvas id="chartCumulative"></canvas></div>
+      ` : ""}
+
+      ${seasonGoals > 0 && seasonMatches.length > 0 ? `
+      <div class="expanded-section-title">Doelpunten per wedstrijd</div>
+      <div class="expanded-chart-wrap"><canvas id="chartGoalBar"></canvas></div>
+      ` : ""}
+
+      ${seasons.length > 1 ? `
+      <div class="expanded-section-title">All-time per seizoen</div>
+      <div class="expanded-chart-wrap"><canvas id="chartAllTime"></canvas></div>
+      ` : ""}
+
+      <div class="expanded-section-title">All-time totaal</div>
+      <div class="expanded-alltime-grid">
+        <div class="expanded-alltime-item"><span class="expanded-alltime-num">${allGoals}</span><span class="expanded-alltime-label">goals</span></div>
+        <div class="expanded-alltime-item"><span class="expanded-alltime-num">${allAssists}</span><span class="expanded-alltime-label">assists</span></div>
+        <div class="expanded-alltime-item"><span class="expanded-alltime-num">${allMotm}</span><span class="expanded-alltime-label">MOTM</span></div>
+      </div>
+
+      <div class="expanded-match-log">
+        <div class="expanded-section-title">Wedstrijdlog</div>
+        ${smSorted.slice().reverse().map(m => {
+          const g = playerGoals(m);
+          const a = playerAssists(m);
+          const og = playerOwnGoals(m);
+          const geel = playerGeel(m);
+          const groen = playerGroen(m);
+          const motm = playerMotm(m);
+          if (!playerInMatch(m)) return "";
+          const bits = [];
+          if (g) bits.push(`${g} ⚽`);
+          if (a) bits.push(`${a} 🎯`);
+          if (og) bits.push(`${og} 😬`);
+          if (geel) bits.push("🟨");
+          if (groen) bits.push("🟩");
+          if (motm) bits.push("⭐ MOTM");
+          const d = new Date(m.date + "T12:00:00").toLocaleDateString("nl-NL", { weekday: "short", day: "numeric", month: "short" });
+          return `<div class="match-log-row">
+            <span class="match-log-date">${d}</span>
+            <span class="match-log-opp">${escapeHtml(m.opponent || "?")}</span>
+            <span class="match-log-stats">${bits.join(" · ")}</span>
+          </div>`;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  // Render charts after DOM is painted
+  setTimeout(() => {
+    const chartDefaults = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: "#d8d8dc", font: { weight: "bold", size: 11 } } } },
+      scales: {
+        x: { ticks: { color: "#a1a1a6", font: { size: 10 } }, grid: { color: "rgba(255,255,255,0.07)" } },
+        y: { ticks: { color: "#a1a1a6", font: { size: 10 }, stepSize: 1 }, grid: { color: "rgba(255,255,255,0.07)" }, beginAtZero: true }
+      }
+    };
+
+    if (smSorted.length >= 2) {
+      const ctx1 = document.getElementById("chartGoalsAssists");
+      if (ctx1) {
+        expandedStatsCharts.push(new Chart(ctx1, {
+          type: "bar",
+          data: {
+            labels: matchLabels,
+            datasets: [
+              { label: "Goals", data: goalsPerMatch, backgroundColor: "rgba(70,211,105,0.75)", borderRadius: 4 },
+              { label: "Assists", data: assistsPerMatch, backgroundColor: "rgba(255,204,0,0.65)", borderRadius: 4 }
+            ]
+          },
+          options: { ...chartDefaults }
+        }));
+      }
+
+      const ctx2 = document.getElementById("chartCumulative");
+      if (ctx2) {
+        expandedStatsCharts.push(new Chart(ctx2, {
+          type: "line",
+          data: {
+            labels: matchLabels,
+            datasets: [
+              { label: "Goals", data: cumulativeGoals, borderColor: "#46d369", backgroundColor: "rgba(70,211,105,0.12)", fill: true, tension: 0.3, pointRadius: 4 },
+              { label: "Assists", data: cumulativeAssists, borderColor: "#ffcc00", backgroundColor: "rgba(255,204,0,0.08)", fill: true, tension: 0.3, pointRadius: 4 }
+            ]
+          },
+          options: { ...chartDefaults }
+        }));
+      }
+
+      if (seasonGoals > 0) {
+        const ctx3 = document.getElementById("chartGoalBar");
+        if (ctx3) {
+          expandedStatsCharts.push(new Chart(ctx3, {
+            type: "bar",
+            data: {
+              labels: matchLabels,
+              datasets: [
+                { label: "Doelpunten", data: goalsPerMatch, backgroundColor: goalsPerMatch.map(v => v > 0 ? "rgba(70,211,105,0.8)" : "rgba(255,255,255,0.1)"), borderRadius: 4 }
+              ]
+            },
+            options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } } }
+          }));
+        }
+      }
+    }
+
+    if (seasons.length > 1) {
+      const ctx4 = document.getElementById("chartAllTime");
+      if (ctx4) {
+        expandedStatsCharts.push(new Chart(ctx4, {
+          type: "bar",
+          data: {
+            labels: seasonGoalsHistory.map(s => s.season),
+            datasets: [
+              { label: "Goals", data: seasonGoalsHistory.map(s => s.goals), backgroundColor: "rgba(70,211,105,0.75)", borderRadius: 4 },
+              { label: "Assists", data: seasonGoalsHistory.map(s => s.assists), backgroundColor: "rgba(255,204,0,0.65)", borderRadius: 4 }
+            ]
+          },
+          options: { ...chartDefaults }
+        }));
+      }
+    }
+  }, 50);
 }
 
 init();
