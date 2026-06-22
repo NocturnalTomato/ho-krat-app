@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HO Krat App</title>
   <link rel="stylesheet" href="styles.css?v=4" />
-  <script src="app.js?v=1003" defer></script>
+  <script src="app.js?v=1004" defer></script>
 </head>
 
 <body>
@@ -132,6 +132,67 @@
   <div class="spond-status" id="splitserStatus">Splitser-data laden...</div>
 </div>
 
+    <!-- OPSTELLING CARD -->
+    <div class="lineup-card" id="lineupCard">
+      <div class="lineup-header">
+        <div>
+          <div class="lineup-kicker">GROEN GEEL - H8</div>
+          <div class="lineup-title">Opstelling</div>
+        </div>
+        <button class="mini-button" type="button" id="lineupEditBtn" onclick="lineupEditBtnClick()">Bewerken</button>
+      </div>
+
+      <div class="lineup-formation-row" id="lineupFormationRow" style="display:none;">
+        <button class="lineup-form-btn" type="button" data-formation="4-3-3" onclick="lineupSetFormation('4-3-3')">4-3-3</button>
+        <button class="lineup-form-btn" type="button" data-formation="4-4-2" onclick="lineupSetFormation('4-4-2')">4-4-2</button>
+        <button class="lineup-form-btn" type="button" data-formation="3-4-3" onclick="lineupSetFormation('3-4-3')">3-4-3</button>
+        <button class="lineup-form-btn" type="button" data-formation="3-5-2" onclick="lineupSetFormation('3-5-2')">3-5-2</button>
+      </div>
+
+      <div class="lineup-field-wrap" id="lineupFieldWrap">
+        <svg class="lineup-field-svg" viewBox="0 0 400 520" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <!-- Grasveld achtergrond -->
+          <rect width="400" height="520" fill="#1a5c2e"/>
+          <!-- Buitengrens -->
+          <rect x="10" y="10" width="380" height="500" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+          <!-- Middenlijn -->
+          <line x1="10" y1="260" x2="390" y2="260" stroke="rgba(255,255,255,0.4)" stroke-width="1.5"/>
+          <!-- Middenstip + cirkel -->
+          <circle cx="200" cy="260" r="40" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+          <circle cx="200" cy="260" r="3" fill="rgba(255,255,255,0.5)"/>
+          <!-- 23m-lijnen -->
+          <line x1="10" y1="135" x2="390" y2="135" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+          <line x1="10" y1="385" x2="390" y2="385" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+          <!-- Schietzirkels (D-zones) -->
+          <ellipse cx="200" cy="10" rx="112" ry="90" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+          <ellipse cx="200" cy="510" rx="112" ry="90" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.5"/>
+          <!-- Strafschopstip -->
+          <circle cx="200" cy="112" r="3" fill="rgba(255,255,255,0.5)"/>
+          <circle cx="200" cy="408" r="3" fill="rgba(255,255,255,0.5)"/>
+          <!-- Doelen (boven = tegenstander, onder = ons) -->
+          <rect x="154" y="4" width="92" height="12" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="2" rx="1"/>
+          <rect x="154" y="504" width="92" height="12" fill="none" stroke="rgba(255,255,255,0.65)" stroke-width="2" rx="1"/>
+        </svg>
+        <!-- Spelerchips worden hier dynamisch door JS toegevoegd -->
+      </div>
+
+      <div class="lineup-meta" id="lineupMeta">Opstelling laden...</div>
+
+      <div class="lineup-bank-wrap" id="lineupBankWrap" style="display:none;">
+        <div class="lineup-bank-header">
+          <span class="lineup-bank-label">BANK</span>
+          <button class="mini-button" type="button" onclick="lineupAddPlayer()">+ Speler</button>
+        </div>
+        <div class="lineup-bank" id="lineupBank"></div>
+      </div>
+
+      <div class="lineup-save-row" id="lineupSaveRow" style="display:none;">
+        <button class="splitser-toggle lineup-save-btn" type="button" onclick="lineupSave()">Opstelling opslaan</button>
+      </div>
+
+      <div class="lineup-status" id="lineupStatus"></div>
+    </div>
+
     <div class="version">HO KRAT ORACLE v3.0 - Florine</div>
   </div>
 
@@ -142,6 +203,47 @@
       <div class="popup-buttons">
         <button type="button" onclick="popupYes()">Ja</button>
         <button type="button" onclick="popupNo()">Nee</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPSTELLING: Wachtwoord-popup -->
+  <div class="popup" id="lineupPasswordPopup" style="display:none;">
+    <div class="popup-box">
+      <div class="popup-title">AANVOERDER?</div>
+      <div class="lineup-popup-sub">Voer het wachtwoord in om de opstelling te bewerken.</div>
+      <input
+        class="lineup-popup-input"
+        type="password"
+        id="lineupPasswordInput"
+        placeholder="Wachtwoord"
+        autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') lineupPasswordSubmit()"
+      />
+      <div class="lineup-popup-error" id="lineupPasswordError"></div>
+      <div class="popup-buttons" style="margin-top:16px;">
+        <button type="button" onclick="lineupPasswordCancel()">Annuleer</button>
+        <button type="button" onclick="lineupPasswordSubmit()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPSTELLING: Speler toevoegen popup -->
+  <div class="popup" id="lineupAddPlayerPopup" style="display:none;">
+    <div class="popup-box">
+      <div class="popup-title">SPELER TOEVOEGEN</div>
+      <div class="lineup-popup-sub">Naam van de invaller of extra speler.</div>
+      <input
+        class="lineup-popup-input"
+        type="text"
+        id="lineupAddPlayerInput"
+        placeholder="Volledige naam"
+        autocomplete="off"
+        onkeydown="if(event.key==='Enter') lineupAddPlayerConfirm()"
+      />
+      <div class="popup-buttons" style="margin-top:16px;">
+        <button type="button" onclick="lineupAddPlayerCancel()">Annuleer</button>
+        <button type="button" onclick="lineupAddPlayerConfirm()">Toevoegen</button>
       </div>
     </div>
   </div>
