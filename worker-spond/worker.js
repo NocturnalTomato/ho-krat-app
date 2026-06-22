@@ -1024,26 +1024,43 @@ async function probeHwMatches(teamId, uuid, token, pouleId) {
     results.basic = { count: Array.isArray(arr) ? arr.length : "not-array", raw: JSON.stringify(data).substring(0, 200) };
   } catch (e) { results.basic = { error: e.message }; }
 
-  // 2+3: poule-level queries — should return full season matches with scores
+  // 2: poule detail — matches are embedded in this response (not a separate /matches endpoint)
   if (pouleId) {
     try {
       const data = await hwRequest(`/poules/${pouleId}`, {}, "GET", uuid, token);
       const inner = data.data || data;
-      results.poule_detail = { keys: Object.keys(inner), preview: JSON.stringify(data).substring(0, 600) };
-    } catch (e) { results.poule_detail = { error: e.message }; }
+      const matchesArr = Array.isArray(inner.matches) ? inner.matches : [];
+      const standingsArr = Array.isArray(inner.standings) ? inner.standings : [];
 
-    try {
-      const data = await hwRequest(`/poules/${pouleId}/matches`, {}, "GET", uuid, token);
-      const arr = data.data || data;
-      const matches = Array.isArray(arr) ? arr : [];
-      const scored = matches.filter(m => m.home_score !== null && m.home_score !== undefined);
-      results.poule_matches = {
-        total: matches.length,
-        with_score: scored.length,
-        sample: matches.slice(0, 2),
-        scored_sample: scored.slice(0, 2)
+      // Find which team IDs in standings correspond to our club
+      const ggStanding = standingsArr.find(s => {
+        const n = (s.team?.name || "").toLowerCase();
+        return n.includes("groen") || n.includes("geel") || n.includes("h8");
+      });
+      const ggTeamId = ggStanding?.team?.id;
+
+      // Filter matches by team name (name is more reliable than ID across systems)
+      const ggMatches = matchesArr.filter(m => {
+        const home = (m.home_team?.name || "").toLowerCase();
+        const away = (m.away_team?.name || "").toLowerCase();
+        return home.includes("groen") || away.includes("groen") ||
+               home.includes("geel") || away.includes("geel");
+      });
+      const scoredGg = ggMatches.filter(m => m.home_score !== null && m.home_score !== undefined);
+
+      results.poule_detail = {
+        competition: inner.competition?.name,
+        standings_count: standingsArr.length,
+        gg_standing: ggStanding ? { rank: ggStanding.rank, team_id: ggStanding.team?.id, team_name: ggStanding.team?.name, played: ggStanding.played, points: ggStanding.points } : null,
+        gg_team_id_in_poule: ggTeamId,
+        matches_total: matchesArr.length,
+        gg_matches: ggMatches.length,
+        gg_scored: scoredGg.length,
+        gg_match_sample: ggMatches.slice(0, 3),
+        gg_scored_sample: scoredGg.slice(0, 3),
+        all_matches_sample: matchesArr.slice(0, 2)
       };
-    } catch (e) { results.poule_matches = { error: e.message }; }
+    } catch (e) { results.poule_detail = { error: e.message }; }
   }
 
   // 4: explicit date range for past season (2025-2026)
