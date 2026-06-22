@@ -260,43 +260,61 @@ async function handlePastMatchesGet(env) {
     const token = await loginToSpond(env.SPOND_USERNAME, env.SPOND_PASSWORD);
     const now = new Date();
 
-    // Go back 2 full seasons worth of events
     const twoSeasonsBack = new Date(now);
     twoSeasonsBack.setFullYear(twoSeasonsBack.getFullYear() - 2);
-    const minTs = twoSeasonsBack.toISOString();
-    const maxTs = now.toISOString();
+    const minStartTs = twoSeasonsBack.toISOString();
+    const maxEndTs = now.toISOString();
 
-    // Try the explicit past-event query first, fall back to the generic one
+    // Helper: does this event array contain any past non-training events?
+    function hasPastMatches(evts) {
+      if (!Array.isArray(evts)) return false;
+      return evts.some(e => {
+        if (!e.startTimestamp) return false;
+        if (new Date(e.startTimestamp) >= now) return false;
+        return !String(e.heading || "").toLowerCase().includes("training");
+      });
+    }
+
+    // Try strategies in order — stop at the first that returns past match data.
+    // We check actual content, not just whether the call threw, because Spond
+    // may silently ignore unknown query params and return an empty/future-only list.
+    const queries = [
+      `sponds/?max=200&minStartTimestamp=${minStartTs}&maxEndTimestamp=${maxEndTs}`,
+      `sponds/?max=200&maxEndTimestamp=${maxEndTs}`,
+      `sponds/?max=500&scheduled=false`,
+      `sponds/?max=500`,
+    ];
+
     let events = [];
-    try {
-      events = await spondGet(
-        `sponds/?max=200&minEndTimestamp=${minTs}&maxEndTimestamp=${maxTs}&scheduled=false`,
-        token
-      );
-    } catch {
-      // If the API doesn't support those params, fall back and filter manually
+    let debugStrategy = -1;
+    for (let i = 0; i < queries.length; i++) {
       try {
-        events = await spondGet("sponds/?max=200&scheduled=false", token);
-      } catch {
-        events = [];
-      }
+        const result = await spondGet(queries[i], token);
+        if (hasPastMatches(result)) {
+          events = result;
+          debugStrategy = i;
+          break;
+        }
+      } catch { /* try next */ }
     }
 
     if (!Array.isArray(events)) events = [];
 
-    // Keep only past wedstrijden
+    // Filter to past non-training events (wedstrijden, TD, tournaments, etc.)
+    // We exclude "training" by name; everything else that's in the past is fair game.
+    // Also expose the raw heading so the UI can show/use it.
     const pastMatches = events
       .filter(e => {
         if (!e.startTimestamp) return false;
         if (new Date(e.startTimestamp) >= now) return false;
         const name = String(e.heading || "").toLowerCase();
-        return name.includes("thuis") || name.includes("uit");
+        return !name.includes("training");
       })
       .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp))
       .slice(0, 60);
 
     if (!pastMatches.length) {
-      return json({ matches: [] });
+      return json({ matches: [], debug: { strategy: debugStrategy, totalEvents: events.length } });
     }
 
     // Try to get KNHB played/all matches for opponent enrichment
@@ -305,25 +323,20 @@ async function handlePastMatchesGet(env) {
     const formatted = pastMatches.map(e => {
       const date = e.startTimestamp.substring(0, 10);
       const heading = String(e.heading || "");
-      const isHome = heading.toLowerCase().includes("thuis");
+      const lower = heading.toLowerCase();
+      const isHome = lower.includes("thuis");
 
-      // Try KNHB enrichment for opponent name + score
       let opponent = "";
       let goalsFor = null;
       let goalsAgainst = null;
       if (knhbMatches) {
-        const km = knhbMatches.find(m => {
-          const kDate = (m.datetime || "").substring(0, 10);
-          return kDate === date;
-        });
+        const km = knhbMatches.find(m => (m.datetime || "").substring(0, 10) === date);
         if (km) {
           const homeName = km.home_team?.name || "";
           const awayName = km.away_team?.name || "";
           const isOurHome = homeName.toLowerCase().includes("groen") ||
             homeName.toLowerCase().includes("geel");
           opponent = isOurHome ? awayName : homeName;
-
-          // Extract score — KNHB may use home_score/away_score or nested score object
           const hs = km.home_score ?? km.score?.home ?? null;
           const as_ = km.away_score ?? km.score?.away ?? null;
           if (hs !== null && as_ !== null) {
@@ -333,13 +346,9 @@ async function handlePastMatchesGet(env) {
         }
       }
 
-      // If no KNHB match, try extracting from the heading
-      // Headings like "Thuis: GG H8 - Kampong H7" or "Uit bij Zwolle"
       if (!opponent) {
-        const lower = heading.toLowerCase();
         const afterColon = heading.includes(":") ? heading.split(":").slice(1).join(":").trim() : "";
         if (afterColon) {
-          // "GG H8 - Opponent" or "Opponent - GG H8"
           const parts = afterColon.split(/\s*[-–]\s*/);
           if (parts.length >= 2) {
             const isFirstOurs = parts[0].toLowerCase().includes("groen") ||
@@ -350,23 +359,14 @@ async function handlePastMatchesGet(env) {
         } else if (lower.includes("bij ")) {
           opponent = heading.substring(lower.indexOf("bij ") + 4).trim();
         } else if (lower.includes("vs ")) {
-          const vsParts = heading.substring(lower.indexOf("vs ") + 3).split(/\s*[-–]\s*/);
-          opponent = vsParts[0].trim();
+          opponent = heading.substring(lower.indexOf("vs ") + 3).split(/\s*[-–]\s*/)[0].trim();
         }
       }
 
-      return {
-        id: e.id,
-        date,
-        heading,
-        isHome,
-        opponent,
-        goalsFor,
-        goalsAgainst
-      };
+      return { id: e.id, date, heading, isHome, opponent, goalsFor, goalsAgainst };
     });
 
-    return json({ matches: formatted });
+    return json({ matches: formatted, debug: { strategy: debugStrategy, totalEvents: events.length } });
   } catch (err) {
     return json({ matches: [], error: err.message });
   }
