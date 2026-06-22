@@ -27,6 +27,7 @@ async function init() {
   loadSplitserData();
   loadLineup();
   loadStats();
+  loadStandings();
 }
 
 /* =========================
@@ -2385,3 +2386,97 @@ function renderExpandedStats(playerName) {
 }
 
 init();
+
+/* =========================
+   POULESTAND
+========================= */
+
+const STANDINGS_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/standings";
+let standingsPouleId = null;
+
+async function loadStandings() {
+  const body = document.getElementById("standingsBody");
+  if (!body) return;
+
+  try {
+    const url = standingsPouleId ? `${STANDINGS_URL}?poule_id=${encodeURIComponent(standingsPouleId)}` : STANDINGS_URL;
+    const res = await fetch(url, { cache: "no-store" });
+    const data = await res.json();
+
+    if (data.error) {
+      body.innerHTML = `<div class="lineup-meta">Kon poulestand niet laden: ${escapeHtml(data.error)}</div>`;
+      return;
+    }
+
+    // Season selector — only show when multiple poules are available
+    const sel = document.getElementById("standingsSeasonSelect");
+    if (sel && data.poule_options && data.poule_options.length > 1) {
+      sel.innerHTML = data.poule_options.map(p =>
+        `<option value="${escapeHtml(String(p.id))}" ${String(p.id) === String(data.poule_id) ? "selected" : ""}>${escapeHtml(p.label)}</option>`
+      ).join("");
+      sel.style.display = "";
+    } else if (sel) {
+      sel.style.display = "none";
+    }
+
+    if (!data.standings || data.standings.length === 0) {
+      body.innerHTML = `<div class="lineup-meta">Geen stand beschikbaar.</div>`;
+      return;
+    }
+
+    const compLabel = data.competition
+      ? `<div class="standings-competition">${escapeHtml(data.competition)}</div>`
+      : "";
+
+    const fmt = v => (v !== null && v !== undefined) ? v : "-";
+
+    let html = compLabel + `
+      <table class="standings-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th class="standings-team-col">Team</th>
+            <th title="Gespeeld">GS</th>
+            <th title="Gewonnen">GW</th>
+            <th title="Gelijk">GL</th>
+            <th title="Verloren">VL</th>
+            <th title="Punten in mindering">PIM</th>
+            <th title="Punten">PT</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    for (const s of data.standings) {
+      const isGG = s.team_id === 3768 ||
+        (s.team_name || "").toLowerCase().includes("groen") ||
+        (s.team_name || "").toLowerCase().includes("geel");
+      const rowClass = isGG ? ' class="standings-gg"' : "";
+      const pim = s.points_deducted > 0 ? s.points_deducted : "-";
+      html += `
+        <tr${rowClass}>
+          <td>${fmt(s.rank)}</td>
+          <td class="standings-team-name">${escapeHtml(s.team_name || "?")}</td>
+          <td>${fmt(s.played)}</td>
+          <td>${fmt(s.won)}</td>
+          <td>${fmt(s.drawn)}</td>
+          <td>${fmt(s.lost)}</td>
+          <td>${pim}</td>
+          <td class="standings-pt">${fmt(s.points)}</td>
+        </tr>
+      `;
+    }
+
+    html += `</tbody></table>`;
+    body.innerHTML = html;
+
+  } catch (e) {
+    body.innerHTML = `<div class="lineup-meta">Fout bij laden van poulestand.</div>`;
+  }
+}
+
+function standingsSeasonChanged() {
+  const sel = document.getElementById("standingsSeasonSelect");
+  if (sel) standingsPouleId = sel.value;
+  loadStandings();
+}
