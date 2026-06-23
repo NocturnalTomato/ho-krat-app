@@ -82,12 +82,19 @@ export default {
         ).bind(weekKey).first()
       ]);
 
+      const allTime = allTimeTop.results || [];
+      const week = weekTop.results || [];
+
       return json({
         success: true,
         weekKey,
-        allTimeTop: allTimeTop.results || [],
-        weekTop: weekTop.results || [],
-        weekWorst: weekWorst || null
+        // Existing arrays remain unchanged for the current Kratflap UI.
+        allTimeTop: allTime,
+        weekTop: week,
+        weekWorst: weekWorst || null,
+        // Convenience aliases for app cards and future push notifications.
+        allTimeRecord: allTime[0] || null,
+        weekRecord: week[0] || null
       });
     }
 
@@ -127,11 +134,32 @@ export default {
       const now = new Date().toISOString();
       const weekKey = getWeekKey(new Date(now));
 
+      // Read the previous records before inserting. Equal scores do not count as a new record.
+      const [previousAllTime, previousWeek] = await Promise.all([
+        env.DB.prepare(`SELECT name, score, created_at FROM scores ORDER BY score DESC, created_at ASC LIMIT 1`).first(),
+        env.DB.prepare(
+          `SELECT name, score, created_at FROM scores WHERE week_key = ? ORDER BY score DESC, created_at ASC LIMIT 1`
+        ).bind(weekKey).first()
+      ]);
+
+      const isNewAllTimeRecord = !previousAllTime || score > Number(previousAllTime.score);
+      const isNewWeekRecord = !previousWeek || score > Number(previousWeek.score);
+
       await env.DB.prepare(
         `INSERT INTO scores (name, score, created_at, week_key) VALUES (?, ?, ?, ?)`
       ).bind(name, score, now, weekKey).run();
 
-      return json({ success: true, saved: { name, score, created_at: now, week_key: weekKey } });
+      const saved = { name, score, created_at: now, week_key: weekKey };
+      return json({
+        success: true,
+        saved,
+        records: {
+          isNewWeekRecord,
+          isNewAllTimeRecord,
+          previousWeekRecord: previousWeek || null,
+          previousAllTimeRecord: previousAllTime || null
+        }
+      });
     }
 
     // DELETE /scores?id=X — admin removal of a score (requires X-Admin-Key header)
