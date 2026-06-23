@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'nl.groengeel.hokrat',
   appName: 'HO Krat',
-  webDir: '.',
+  webDir: 'www',
   bundledWebRuntime: false,
   server: {
     androidScheme: 'https'
