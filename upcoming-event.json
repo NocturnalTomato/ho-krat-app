@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-23T08:26:36.815748+00:00",
+  "updatedAt": "2026-06-24T08:19:23.143249+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
   "memberCount": 24,
@@ -17,33 +17,33 @@
       "Lennart Koetzier",
       "Luc de Goeij",
       "Maarten Bambacht",
-      "Thomas Taks"
+      "Michiel Willemsen",
+      "Thomas Taks",
+      "Wilma Willemsen"
     ],
     "declined": [
       "Bas Quirijns",
       "Bob Leuterrr",
+      "Bruno Recordon",
+      "Faas Van t Hek",
       "Floris Hage",
+      "Jasper Zaar",
       "Jenne",
       "Joost Kirkenier",
       "Marc Segers",
       "Rikkert Verberne",
+      "Stijn Terwindt",
+      "Thijs Oudkerk",
       "Victor Peet",
       "Willem van Rootselaar"
     ],
     "unanswered": [
-      "Bruno Recordon",
-      "Faas Van t Hek",
-      "Jasper Zaar",
-      "Jeroen Mossinkoff",
-      "Michiel Willemsen",
-      "Stijn Terwindt",
-      "Thijs Oudkerk",
-      "Wilma Willemsen"
+      "Jeroen Mossinkoff"
     ],
     "counts": {
-      "attending": 7,
-      "declined": 9,
-      "unanswered": 8
+      "attending": 9,
+      "declined": 14,
+      "unanswered": 1
     }
   }
 }
