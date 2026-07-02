@@ -478,29 +478,30 @@ async function fetchSpondData(env) {
 
   const now = new Date();
 
-  // How long an event stays "current" after it has (nominally) ended, so a
-  // training/match that has already started still counts as the event of the
-  // day for the Ho-krat check instead of vanishing the moment it begins.
-  const EVENT_DEFAULT_DURATION_MS = 2 * 60 * 60 * 1000; // assume 2h when Spond gives no end
-  const CURRENT_GRACE_MS = 4 * 60 * 60 * 1000;          // keep it "current" a while after ending
+  // An event that has already started still counts as the event of the day for
+  // the Ho-krat check (instead of vanishing the moment it begins) up to 23:59
+  // of the same calendar day. "Same day" is measured in the team's local time
+  // zone so it lines up with the browser's isToday check in the app.
+  const EVENT_TIME_ZONE = "Europe/Amsterdam";
+  const localDayKey = date =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: EVENT_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
 
-  const eventEndWindow = event => {
-    const start = new Date(event.startTimestamp).getTime();
-    const end = event.endTimestamp
-      ? new Date(event.endTimestamp).getTime()
-      : start + EVENT_DEFAULT_DURATION_MS;
-    return end + CURRENT_GRACE_MS;
-  };
+  const nowDayKey = localDayKey(now);
 
   const relevantEvents = events.filter(
     event => event.startTimestamp && isRelevantEvent(event)
   );
 
-  // Ongoing or just-finished events: already started, still within their window.
+  // Ongoing or already-started events, still on today's date (until 23:59).
   const currentEvents = relevantEvents
     .filter(event => {
       const start = new Date(event.startTimestamp);
-      return start <= now && now.getTime() < eventEndWindow(event);
+      return start <= now && localDayKey(start) === nowDayKey;
     })
     .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp));
 
