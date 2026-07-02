@@ -478,16 +478,50 @@ async function fetchSpondData(env) {
 
   const now = new Date();
 
-  const relevantEvents = events
+  // How long an event stays "current" after it has (nominally) ended, so a
+  // training/match that has already started still counts as the event of the
+  // day for the Ho-krat check instead of vanishing the moment it begins.
+  const EVENT_DEFAULT_DURATION_MS = 2 * 60 * 60 * 1000; // assume 2h when Spond gives no end
+  const CURRENT_GRACE_MS = 4 * 60 * 60 * 1000;          // keep it "current" a while after ending
+
+  const eventEndWindow = event => {
+    const start = new Date(event.startTimestamp).getTime();
+    const end = event.endTimestamp
+      ? new Date(event.endTimestamp).getTime()
+      : start + EVENT_DEFAULT_DURATION_MS;
+    return end + CURRENT_GRACE_MS;
+  };
+
+  const relevantEvents = events.filter(
+    event => event.startTimestamp && isRelevantEvent(event)
+  );
+
+  // Ongoing or just-finished events: already started, still within their window.
+  const currentEvents = relevantEvents
     .filter(event => {
-      if (!event.startTimestamp) return false;
       const start = new Date(event.startTimestamp);
-      return start > now && isRelevantEvent(event);
+      return start <= now && now.getTime() < eventEndWindow(event);
     })
+    .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp));
+
+  // Genuinely future events.
+  const futureEvents = relevantEvents
+    .filter(event => new Date(event.startTimestamp) > now)
     .sort((a, b) => new Date(a.startTimestamp) - new Date(b.startTimestamp));
 
-  const firstEvent = relevantEvents[0] || null;
-  const secondEvent = relevantEvents[1] || null;
+  const currentEvent = currentEvents[0] || null;
+  const firstEvent = futureEvents[0] || null;
+  const secondEvent = futureEvents[1] || null;
+
+  const toEventOutput = event => ({
+    id: event.id,
+    name: event.heading,
+    startTimestamp: event.startTimestamp,
+    endTimestamp: event.endTimestamp,
+    location: event.location || null,
+    type: getEventType(event),
+    ...extractAttendance(event, memberLookup)
+  });
 
   const output = {
     updatedAt: now.toISOString(),
@@ -495,35 +529,13 @@ async function fetchSpondData(env) {
     groupId: targetGroup?.id || null,
     memberCount: Array.isArray(targetGroup?.members) ? targetGroup.members.length : null,
     members: Object.values(memberLookup).sort(),
-    upcomingEvent: null,
-    nextEvent: null
+    currentEvent: currentEvent ? toEventOutput(currentEvent) : null,
+    upcomingEvent: firstEvent ? toEventOutput(firstEvent) : null,
+    nextEvent: secondEvent ? toEventOutput(secondEvent) : null
   };
 
-  if (firstEvent) {
-    output.upcomingEvent = {
-      id: firstEvent.id,
-      name: firstEvent.heading,
-      startTimestamp: firstEvent.startTimestamp,
-      endTimestamp: firstEvent.endTimestamp,
-      location: firstEvent.location || null,
-      type: getEventType(firstEvent),
-      ...extractAttendance(firstEvent, memberLookup)
-    };
-  }
-
-  if (secondEvent) {
-    output.nextEvent = {
-      id: secondEvent.id,
-      name: secondEvent.heading,
-      startTimestamp: secondEvent.startTimestamp,
-      endTimestamp: secondEvent.endTimestamp,
-      location: secondEvent.location || null,
-      type: getEventType(secondEvent),
-      ...extractAttendance(secondEvent, memberLookup)
-    };
-  }
-
   const knhbMatches = await fetchKnhbData(env);
+  if (output.currentEvent) output.currentEvent = enrichWithKnhb(output.currentEvent, knhbMatches);
   if (output.upcomingEvent) output.upcomingEvent = enrichWithKnhb(output.upcomingEvent, knhbMatches);
   if (output.nextEvent) output.nextEvent = enrichWithKnhb(output.nextEvent, knhbMatches);
 
