@@ -11,7 +11,7 @@ let kratflapUnlocked = false;
 
 // Kratflip: verborgen easter-egg. Niet persistent -> reset bij refresh.
 let kratflipPressCount = 0;
-let kratflipTarget = randomInt(18, 22);
+let kratflipTarget = randomInt(15, 30);
 let kratflipRevealTimer = null;
 let kratflipRevealed = false;
 
@@ -807,7 +807,7 @@ function closeKratflap() {
    KRATFLIP GAME (verborgen)
 ========================= */
 
-// Elke druk op de grote knop telt. Na een willekeurig aantal (18-22) drukken
+// Elke druk op de grote knop telt. Na een willekeurig aantal (15-30) drukken
 // en daarna 3 seconden wachten verschijnt de Kratflip-knop op de plek van de
 // grote knop. Niet persistent: bij refresh moet je opnieuw beginnen.
 function registerKratflipPress() {
@@ -848,7 +848,7 @@ function resetKratflip() {
   clearTimeout(kratflipRevealTimer);
   kratflipRevealed = false;
   kratflipPressCount = 0;
-  kratflipTarget = randomInt(18, 22);
+  kratflipTarget = randomInt(15, 30);
 }
 
 function openKratflip() {
