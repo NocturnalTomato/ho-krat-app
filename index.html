@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>HO Krat App</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-  <link rel="stylesheet" href="styles.css?v=8" />
+  <link rel="stylesheet" href="styles.css?v=9" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
-  <script src="app.js?v=1008" defer></script>
+  <script src="app.js?v=1009" defer></script>
 </head>
 
 <body>
@@ -15,7 +15,15 @@
     <div class="small">IS HET TIJD VOOR</div>
     <div class="title">EEN HO KRAT?</div>
 
-    <button type="button" onclick="checkHoKrat()">CHECK</button>
+    <button type="button" id="checkButton" onclick="checkHoKrat()">CHECK</button>
+
+    <button
+      type="button"
+      id="kratflipButton"
+      class="kratflip-reveal-button"
+      style="display:none;"
+      onclick="startKratflip()"
+    >SPEEL<br />KRATFLIP</button>
 
     <div class="answer" id="answer">Druk op de knop.</div>
     <div class="sub" id="sub"></div>
@@ -423,6 +431,29 @@
         class="kratflap-frame"
         src="https://ho-kratflap.lucdegoeij.workers.dev/"
         title="Kratflap"
+        loading="lazy"
+        allow="web-share; clipboard-write"
+      ></iframe>
+    </div>
+  </div>
+
+  <div class="kratflap-sheet" id="kratflipSheet" aria-hidden="true">
+    <div class="kratflap-backdrop" onclick="closeKratflip()"></div>
+
+    <div class="kratflap-panel">
+      <div class="kratflap-panel-header">
+        <div>
+          <div class="kratflap-kicker">GEHEIME MODUS</div>
+          <div class="kratflap-title">Kratflip</div>
+        </div>
+
+        <button class="kratflap-close" type="button" onclick="closeKratflip()">×</button>
+      </div>
+
+      <iframe
+        class="kratflap-frame"
+        src="https://ho-kratflip.lucdegoeij.workers.dev/"
+        title="Kratflip"
         loading="lazy"
         allow="web-share; clipboard-write"
       ></iframe>
