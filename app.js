@@ -812,16 +812,10 @@ function closeKratflap() {
 
 // Word het vaste getal EXACT geraakt, dan verschijnt meteen een constante gouden
 // gloed rond de gewone knop. Na 1 seconde intensiveert die en morpht de knop
-// naar de klikbare KRATFLIP?-knop. Blijf je tijdens de gloed doorklikken op de
-// gewone knop, dan verspeel je Kratflip tot de volgende refresh.
+// sowieso naar de klikbare KRATFLIP?-knop -- doorklikken tijdens de gloed doet
+// niets en kan Kratflip niet meer verspelen. Reset alleen bij refresh.
 function registerKratflipPress() {
-  if (kratflipDone || kratflipRevealed) return;
-
-  // Gloed loopt en je klikt tóch nog op de gewone knop -> erdoorheen geklikt.
-  if (kratflipGlowing) {
-    missKratflip();
-    return;
-  }
+  if (kratflipDone || kratflipRevealed || kratflipGlowing) return;
 
   kratflipPressCount += 1;
 
@@ -851,16 +845,6 @@ function morphKratflipButton() {
   checkBtn.classList.remove("kratflip-glow");
   checkBtn.style.display = "none";
   flipBtn.style.display = "";
-}
-
-// Erdoorheen geklikt: gloed weg, en geen Kratflip meer tot de volgende refresh.
-function missKratflip() {
-  const checkBtn = document.getElementById("checkButton");
-  if (checkBtn) checkBtn.classList.remove("kratflip-glow");
-
-  clearTimeout(kratflipMorphTimer);
-  kratflipGlowing = false;
-  kratflipDone = true;
 }
 
 function startKratflip() {
