@@ -518,6 +518,26 @@ summary {
    KRATFLAP GAME SHEET
 ========================= */
 
+.kratflip-reveal-button {
+  background: #ffd60a;
+  color: #050505;
+  font-size: 20px;
+  line-height: 1.05;
+  box-shadow: 0 15px 40px rgba(255, 214, 10, 0.35);
+  animation: kratflipPop 0.3s ease;
+}
+
+@keyframes kratflipPop {
+  from {
+    transform: scale(0.5);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .kratflap-teaser {
   margin-top: 14px;
   padding: 12px;

@@ -9,6 +9,12 @@ let splitserFullOpen = false;
 let kratflapCheckCount = 0;
 let kratflapUnlocked = false;
 
+// Kratflip: verborgen easter-egg. Niet persistent -> reset bij refresh.
+let kratflipPressCount = 0;
+let kratflipTarget = randomInt(18, 22);
+let kratflipRevealTimer = null;
+let kratflipRevealed = false;
+
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
 const SPLITSER_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/splitser-balance?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
@@ -589,6 +595,7 @@ function renderNextEventCard(data, event) {
 
 async function checkHoKrat() {
   registerKratflapCheck();
+  registerKratflipPress();
 
   const now = Date.now();
 
@@ -797,6 +804,72 @@ function closeKratflap() {
 }
 
 /* =========================
+   KRATFLIP GAME (verborgen)
+========================= */
+
+// Elke druk op de grote knop telt. Na een willekeurig aantal (18-22) drukken
+// en daarna 3 seconden wachten verschijnt de Kratflip-knop op de plek van de
+// grote knop. Niet persistent: bij refresh moet je opnieuw beginnen.
+function registerKratflipPress() {
+  if (kratflipRevealed) return;
+
+  kratflipPressCount += 1;
+
+  if (kratflipPressCount >= kratflipTarget) {
+    // (Her)start de 3s-timer: pas na 3 seconden stilte verschijnt de knop.
+    clearTimeout(kratflipRevealTimer);
+    kratflipRevealTimer = setTimeout(revealKratflipButton, 3000);
+  }
+}
+
+function revealKratflipButton() {
+  const checkBtn = document.getElementById("checkButton");
+  const flipBtn = document.getElementById("kratflipButton");
+  if (!checkBtn || !flipBtn) return;
+
+  kratflipRevealed = true;
+  checkBtn.style.display = "none";
+  flipBtn.style.display = "";
+}
+
+function startKratflip() {
+  openKratflip();
+  resetKratflip();
+}
+
+// Zet de grote knop terug naar normaal en reset de teller, zodat je opnieuw
+// 18-22 keer moet drukken voor de knop weer verschijnt.
+function resetKratflip() {
+  const checkBtn = document.getElementById("checkButton");
+  const flipBtn = document.getElementById("kratflipButton");
+  if (flipBtn) flipBtn.style.display = "none";
+  if (checkBtn) checkBtn.style.display = "";
+
+  clearTimeout(kratflipRevealTimer);
+  kratflipRevealed = false;
+  kratflipPressCount = 0;
+  kratflipTarget = randomInt(18, 22);
+}
+
+function openKratflip() {
+  const sheet = document.getElementById("kratflipSheet");
+  if (!sheet) return;
+
+  sheet.classList.add("show");
+  sheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeKratflip() {
+  const sheet = document.getElementById("kratflipSheet");
+  if (!sheet) return;
+
+  sheet.classList.remove("show");
+  sheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+/* =========================
    HELPERS
 ========================= */
 
@@ -887,6 +960,10 @@ function clamp(value, min, max) {
 function randomFrom(list) {
   if (!list || !list.length) return "";
   return list[Math.floor(Math.random() * list.length)];
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
 function setResult(answer, sub) {
