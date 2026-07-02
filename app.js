@@ -11,7 +11,7 @@ let kratflapUnlocked = false;
 
 // Kratflip: verborgen easter-egg. Niet persistent -> reset bij refresh.
 let kratflipPressCount = 0;
-let kratflipTarget = randomInt(15, 30);
+let kratflipTarget = randomInt(15, 25);
 let kratflipRevealTimer = null;
 let kratflipRevealed = false;
 
@@ -807,16 +807,21 @@ function closeKratflap() {
    KRATFLIP GAME (verborgen)
 ========================= */
 
-// Elke druk op de grote knop telt. Na een willekeurig aantal (15-30) drukken
-// en daarna 3 seconden wachten verschijnt de Kratflip-knop op de plek van de
-// grote knop. Niet persistent: bij refresh moet je opnieuw beginnen.
+// Twee fases. Fase 1: na een willekeurig aantal (15-25) drukken krijgt de grote
+// knop een gouden gloed (blijft gewoon CHECK). Fase 2: daarna 3 seconden stilte
+// -> de gloed intensiveert en de knop verandert in de gouden "KRATFLIP?"-knop.
+// Niet persistent: bij refresh moet je opnieuw beginnen.
 function registerKratflipPress() {
   if (kratflipRevealed) return;
 
   kratflipPressCount += 1;
 
   if (kratflipPressCount >= kratflipTarget) {
-    // (Her)start de 3s-timer: pas na 3 seconden stilte verschijnt de knop.
+    // Fase 1: gouden gloed rond de CHECK-knop als hint.
+    const checkBtn = document.getElementById("checkButton");
+    if (checkBtn) checkBtn.classList.add("kratflip-glow");
+
+    // Fase 2: pas na 3 seconden stilte verandert de knop echt.
     clearTimeout(kratflipRevealTimer);
     kratflipRevealTimer = setTimeout(revealKratflipButton, 3000);
   }
@@ -828,6 +833,7 @@ function revealKratflipButton() {
   if (!checkBtn || !flipBtn) return;
 
   kratflipRevealed = true;
+  checkBtn.classList.remove("kratflip-glow");
   checkBtn.style.display = "none";
   flipBtn.style.display = "";
 }
@@ -838,17 +844,20 @@ function startKratflip() {
 }
 
 // Zet de grote knop terug naar normaal en reset de teller, zodat je opnieuw
-// 18-22 keer moet drukken voor de knop weer verschijnt.
+// 15-25 keer moet drukken voor de knop weer verschijnt.
 function resetKratflip() {
   const checkBtn = document.getElementById("checkButton");
   const flipBtn = document.getElementById("kratflipButton");
   if (flipBtn) flipBtn.style.display = "none";
-  if (checkBtn) checkBtn.style.display = "";
+  if (checkBtn) {
+    checkBtn.style.display = "";
+    checkBtn.classList.remove("kratflip-glow");
+  }
 
   clearTimeout(kratflipRevealTimer);
   kratflipRevealed = false;
   kratflipPressCount = 0;
-  kratflipTarget = randomInt(15, 30);
+  kratflipTarget = randomInt(15, 25);
 }
 
 function openKratflip() {

@@ -518,13 +518,31 @@ summary {
    KRATFLAP GAME SHEET
 ========================= */
 
+/* Fase 1: gouden gloed rond de nog-normale CHECK-knop als hint. */
+.kratflip-glow {
+  animation: kratflipGlow 1.6s ease-in-out infinite;
+}
+
+@keyframes kratflipGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 14px 3px rgba(255, 214, 10, 0.5),
+      0 15px 40px rgba(255, 255, 255, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 30px 10px rgba(255, 214, 10, 0.85),
+      0 15px 40px rgba(255, 255, 255, 0.25);
+  }
+}
+
+/* Fase 2: de knop zelf wordt goud en gloeit intenser. */
 .kratflip-reveal-button {
   background: #ffd60a;
   color: #050505;
-  font-size: 20px;
+  font-size: 21px;
   line-height: 1.05;
-  box-shadow: 0 15px 40px rgba(255, 214, 10, 0.35);
-  animation: kratflipPop 0.3s ease;
+  animation: kratflipPop 0.3s ease,
+    kratflipGlowIntense 1.2s ease-in-out 0.3s infinite;
 }
 
 @keyframes kratflipPop {
@@ -535,6 +553,16 @@ summary {
   to {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes kratflipGlowIntense {
+  0%,
+  100% {
+    box-shadow: 0 0 26px 6px rgba(255, 214, 10, 0.65);
+  }
+  50% {
+    box-shadow: 0 0 52px 18px rgba(255, 214, 10, 0.95);
   }
 }
 
