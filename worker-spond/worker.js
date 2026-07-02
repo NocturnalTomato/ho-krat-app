@@ -478,16 +478,51 @@ async function fetchSpondData(env) {
 
   const now = new Date();
 
-  const relevantEvents = events
+  // An event that has already started still counts as the event of the day for
+  // the Ho-krat check (instead of vanishing the moment it begins) up to 23:59
+  // of the same calendar day. "Same day" is measured in the team's local time
+  // zone so it lines up with the browser's isToday check in the app.
+  const EVENT_TIME_ZONE = "Europe/Amsterdam";
+  const localDayKey = date =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: EVENT_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(date);
+
+  const nowDayKey = localDayKey(now);
+
+  const relevantEvents = events.filter(
+    event => event.startTimestamp && isRelevantEvent(event)
+  );
+
+  // Ongoing or already-started events, still on today's date (until 23:59).
+  const currentEvents = relevantEvents
     .filter(event => {
-      if (!event.startTimestamp) return false;
       const start = new Date(event.startTimestamp);
-      return start > now && isRelevantEvent(event);
+      return start <= now && localDayKey(start) === nowDayKey;
     })
+    .sort((a, b) => new Date(b.startTimestamp) - new Date(a.startTimestamp));
+
+  // Genuinely future events.
+  const futureEvents = relevantEvents
+    .filter(event => new Date(event.startTimestamp) > now)
     .sort((a, b) => new Date(a.startTimestamp) - new Date(b.startTimestamp));
 
-  const firstEvent = relevantEvents[0] || null;
-  const secondEvent = relevantEvents[1] || null;
+  const currentEvent = currentEvents[0] || null;
+  const firstEvent = futureEvents[0] || null;
+  const secondEvent = futureEvents[1] || null;
+
+  const toEventOutput = event => ({
+    id: event.id,
+    name: event.heading,
+    startTimestamp: event.startTimestamp,
+    endTimestamp: event.endTimestamp,
+    location: event.location || null,
+    type: getEventType(event),
+    ...extractAttendance(event, memberLookup)
+  });
 
   const output = {
     updatedAt: now.toISOString(),
@@ -495,35 +530,13 @@ async function fetchSpondData(env) {
     groupId: targetGroup?.id || null,
     memberCount: Array.isArray(targetGroup?.members) ? targetGroup.members.length : null,
     members: Object.values(memberLookup).sort(),
-    upcomingEvent: null,
-    nextEvent: null
+    currentEvent: currentEvent ? toEventOutput(currentEvent) : null,
+    upcomingEvent: firstEvent ? toEventOutput(firstEvent) : null,
+    nextEvent: secondEvent ? toEventOutput(secondEvent) : null
   };
 
-  if (firstEvent) {
-    output.upcomingEvent = {
-      id: firstEvent.id,
-      name: firstEvent.heading,
-      startTimestamp: firstEvent.startTimestamp,
-      endTimestamp: firstEvent.endTimestamp,
-      location: firstEvent.location || null,
-      type: getEventType(firstEvent),
-      ...extractAttendance(firstEvent, memberLookup)
-    };
-  }
-
-  if (secondEvent) {
-    output.nextEvent = {
-      id: secondEvent.id,
-      name: secondEvent.heading,
-      startTimestamp: secondEvent.startTimestamp,
-      endTimestamp: secondEvent.endTimestamp,
-      location: secondEvent.location || null,
-      type: getEventType(secondEvent),
-      ...extractAttendance(secondEvent, memberLookup)
-    };
-  }
-
   const knhbMatches = await fetchKnhbData(env);
+  if (output.currentEvent) output.currentEvent = enrichWithKnhb(output.currentEvent, knhbMatches);
   if (output.upcomingEvent) output.upcomingEvent = enrichWithKnhb(output.upcomingEvent, knhbMatches);
   if (output.nextEvent) output.nextEvent = enrichWithKnhb(output.nextEvent, knhbMatches);
 

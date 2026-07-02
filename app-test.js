@@ -410,7 +410,7 @@ async function loadEventData() {
 }
 
 function calculateChances(data) {
-  const event = data.upcomingEvent || {};
+  const event = data.currentEvent || data.upcomingEvent || {};
   const counts = event.counts || {};
 
   const attending = counts.attending || 0;
@@ -451,9 +451,10 @@ function calculateChances(data) {
 function renderEvent(data, chances) {
   const primaryEvent = data.currentEvent || data.upcomingEvent || null;
 
+  const candidateNext = data.currentEvent ? data.upcomingEvent : data.nextEvent;
   const secondaryEvent =
-    data.nextEvent && primaryEvent && data.nextEvent.id !== primaryEvent.id
-      ? data.nextEvent
+    candidateNext && primaryEvent && candidateNext.id !== primaryEvent.id
+      ? candidateNext
       : null;
 
   renderPrimaryEventCard(data, primaryEvent, chances);
@@ -483,7 +484,7 @@ async function checkHoKrat() {
 
   setResult("...", "Het Orakel raadpleegt Spond en Splitser.");
 
-  if (!eventData || !eventData.upcomingEvent) {
+  if (!eventData || (!eventData.currentEvent && !eventData.upcomingEvent)) {
     setResult("NEE.", randomFrom(responses.noSpond));
     return;
   }
@@ -499,7 +500,7 @@ async function checkHoKrat() {
 }
 
 function getDecision() {
-  const event = eventData.upcomingEvent || {};
+  const event = eventData.currentEvent || eventData.upcomingEvent || {};
   const type = (event.type || "").toLowerCase();
   const attending = event.counts?.attending || 0;
 
@@ -774,9 +775,10 @@ function startCountdown() {
 }
 
 function updateCountdown() {
-  if (!eventData || !eventData.upcomingEvent) return;
+  const primary = eventData && (eventData.currentEvent || eventData.upcomingEvent);
+  if (!primary) return;
 
-  const start = new Date(eventData.upcomingEvent.startTimestamp).getTime();
+  const start = new Date(primary.startTimestamp).getTime();
   const diff = start - Date.now();
 
   if (diff <= 0) {
