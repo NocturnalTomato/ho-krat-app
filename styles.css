@@ -518,10 +518,20 @@ summary {
    KRATFLAP GAME SHEET
 ========================= */
 
-/* Fase 1: instant, CONSTANTE gouden gloed rond de nog-normale CHECK-knop. */
+/* Fase 1: rand-gloed die vanaf het geheime getal in ~1s aanzwelt tot de morph. */
 .kratflip-glow {
-  box-shadow: 0 0 24px 7px rgba(255, 214, 10, 0.8),
-    0 15px 40px rgba(255, 255, 255, 0.25);
+  animation: kratflipGlowGrow 1s ease-in forwards;
+}
+
+@keyframes kratflipGlowGrow {
+  0% {
+    box-shadow: 0 0 6px 1px rgba(255, 214, 10, 0.35),
+      0 15px 40px rgba(255, 255, 255, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 36px 13px rgba(255, 214, 10, 0.95),
+      0 15px 40px rgba(255, 255, 255, 0.25);
+  }
 }
 
 /* Fase 2: de knop zelf wordt goud en gloeit intenser. */

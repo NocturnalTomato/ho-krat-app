@@ -810,12 +810,18 @@ function closeKratflap() {
    KRATFLIP GAME (verborgen)
 ========================= */
 
-// Word het vaste getal EXACT geraakt, dan verschijnt meteen een constante gouden
-// gloed rond de gewone knop. Na 1 seconde intensiveert die en morpht de knop
-// sowieso naar de klikbare KRATFLIP?-knop -- doorklikken tijdens de gloed doet
-// niets en kan Kratflip niet meer verspelen. Reset alleen bij refresh.
+// Word het vaste getal EXACT geraakt, dan lichten de randen van de knop op.
+// Herken je de gloed en STOP je met tikken, dan zwelt hij in ~1s aan en morpht
+// de knop naar de klikbare KRATFLIP?-knop. Tik je toch door, dan is de kans weg
+// -- maar ~20-30 drukken later krijg je automatisch een nieuwe kans.
 function registerKratflipPress() {
-  if (kratflipDone || kratflipRevealed || kratflipGlowing) return;
+  if (kratflipDone || kratflipRevealed) return;
+
+  // Gloed loopt en je tikt toch door -> gemist. Her-arm een nieuw geheim getal.
+  if (kratflipGlowing) {
+    missKratflip();
+    return;
+  }
 
   kratflipPressCount += 1;
 
@@ -829,10 +835,20 @@ function startKratflipGlow() {
   if (!checkBtn) return;
 
   kratflipGlowing = true;
-  checkBtn.classList.add("kratflip-glow"); // meteen zichtbaar, constante gloed
+  checkBtn.classList.add("kratflip-glow"); // rand-gloed die aanzwelt
 
   clearTimeout(kratflipMorphTimer);
   kratflipMorphTimer = setTimeout(morphKratflipButton, 1000);
+}
+
+// Doorheen getikt: gloed weg en pas over 20-30 drukken een nieuwe kans.
+function missKratflip() {
+  const checkBtn = document.getElementById("checkButton");
+  if (checkBtn) checkBtn.classList.remove("kratflip-glow");
+
+  clearTimeout(kratflipMorphTimer);
+  kratflipGlowing = false;
+  kratflipTarget = kratflipPressCount + randomInt(20, 30);
 }
 
 function morphKratflipButton() {
