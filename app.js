@@ -9,11 +9,14 @@ let splitserFullOpen = false;
 let kratflapCheckCount = 0;
 let kratflapUnlocked = false;
 
-// Kratflip: verborgen easter-egg. Niet persistent -> reset bij refresh.
+// Kratflip: verborgen easter-egg. Per refresh wordt EEN vast willekeurig getal
+// gekozen; word dat exact geraakt, dan verschijnt de kans. Niet persistent.
 let kratflipPressCount = 0;
 let kratflipTarget = randomInt(15, 25);
-let kratflipRevealTimer = null;
-let kratflipRevealed = false;
+let kratflipMorphTimer = null;
+let kratflipGlowing = false; // fase 1: constante gloed, knop is nog CHECK
+let kratflipRevealed = false; // fase 2: gemorpht naar de KRATFLIP?-knop
+let kratflipDone = false; // egg voorbij deze sessie (gespeeld of verspeeld)
 
 const COOLDOWN_MS = 5000;
 const SYNC_URL = "https://ho-krat-trigger.lucdegoeij.workers.dev/?key=aksjjkhdsadk2387or4ihfakhufahiueciahlcvhliarg9loahe3qtfh4789";
@@ -807,45 +810,63 @@ function closeKratflap() {
    KRATFLIP GAME (verborgen)
 ========================= */
 
-// Twee fases. Fase 1: na een willekeurig aantal (15-25) drukken krijgt de grote
-// knop een gouden gloed (blijft gewoon CHECK). Fase 2: daarna 3 seconden stilte
-// -> de gloed intensiveert en de knop verandert in de gouden "KRATFLIP?"-knop.
-// Niet persistent: bij refresh moet je opnieuw beginnen.
+// Word het vaste getal EXACT geraakt, dan verschijnt meteen een constante gouden
+// gloed rond de gewone knop. Na 1 seconde intensiveert die en morpht de knop
+// naar de klikbare KRATFLIP?-knop. Blijf je tijdens de gloed doorklikken op de
+// gewone knop, dan verspeel je Kratflip tot de volgende refresh.
 function registerKratflipPress() {
-  if (kratflipRevealed) return;
+  if (kratflipDone || kratflipRevealed) return;
+
+  // Gloed loopt en je klikt tóch nog op de gewone knop -> erdoorheen geklikt.
+  if (kratflipGlowing) {
+    missKratflip();
+    return;
+  }
 
   kratflipPressCount += 1;
 
-  if (kratflipPressCount >= kratflipTarget) {
-    // Fase 1: gouden gloed rond de CHECK-knop als hint.
-    const checkBtn = document.getElementById("checkButton");
-    if (checkBtn) checkBtn.classList.add("kratflip-glow");
-
-    // Fase 2: pas na 3 seconden stilte verandert de knop echt.
-    clearTimeout(kratflipRevealTimer);
-    kratflipRevealTimer = setTimeout(revealKratflipButton, 3000);
+  if (kratflipPressCount === kratflipTarget) {
+    startKratflipGlow();
   }
 }
 
-function revealKratflipButton() {
+function startKratflipGlow() {
+  const checkBtn = document.getElementById("checkButton");
+  if (!checkBtn) return;
+
+  kratflipGlowing = true;
+  checkBtn.classList.add("kratflip-glow"); // meteen zichtbaar, constante gloed
+
+  clearTimeout(kratflipMorphTimer);
+  kratflipMorphTimer = setTimeout(morphKratflipButton, 1000);
+}
+
+function morphKratflipButton() {
   const checkBtn = document.getElementById("checkButton");
   const flipBtn = document.getElementById("kratflipButton");
   if (!checkBtn || !flipBtn) return;
 
+  kratflipGlowing = false;
   kratflipRevealed = true;
   checkBtn.classList.remove("kratflip-glow");
   checkBtn.style.display = "none";
   flipBtn.style.display = "";
 }
 
-function startKratflip() {
-  openKratflip();
-  resetKratflip();
+// Erdoorheen geklikt: gloed weg, en geen Kratflip meer tot de volgende refresh.
+function missKratflip() {
+  const checkBtn = document.getElementById("checkButton");
+  if (checkBtn) checkBtn.classList.remove("kratflip-glow");
+
+  clearTimeout(kratflipMorphTimer);
+  kratflipGlowing = false;
+  kratflipDone = true;
 }
 
-// Zet de grote knop terug naar normaal en reset de teller, zodat je opnieuw
-// 15-25 keer moet drukken voor de knop weer verschijnt.
-function resetKratflip() {
+function startKratflip() {
+  openKratflip();
+
+  // Knop terug naar normaal; Kratflip is klaar voor deze sessie.
   const checkBtn = document.getElementById("checkButton");
   const flipBtn = document.getElementById("kratflipButton");
   if (flipBtn) flipBtn.style.display = "none";
@@ -854,10 +875,10 @@ function resetKratflip() {
     checkBtn.classList.remove("kratflip-glow");
   }
 
-  clearTimeout(kratflipRevealTimer);
+  clearTimeout(kratflipMorphTimer);
+  kratflipGlowing = false;
   kratflipRevealed = false;
-  kratflipPressCount = 0;
-  kratflipTarget = randomInt(15, 25);
+  kratflipDone = true;
 }
 
 function openKratflip() {
