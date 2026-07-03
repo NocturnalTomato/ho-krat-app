@@ -526,18 +526,34 @@ summary {
 
 @keyframes kratflipGlowGrow {
   0% {
-    box-shadow: 0 0 3px 0 rgba(255, 214, 10, 0.15),
+    box-shadow: 0 0 16px 4px rgba(255, 214, 10, 0.6),
       0 15px 40px rgba(255, 255, 255, 0.25);
   }
   60% {
-    box-shadow: 0 0 18px 5px rgba(255, 214, 10, 0.6),
+    box-shadow: 0 0 30px 10px rgba(255, 214, 10, 0.8),
+      0 0 60px 22px rgba(255, 214, 10, 0.35),
       0 15px 40px rgba(255, 255, 255, 0.25);
   }
   100% {
-    box-shadow: 0 0 44px 16px rgba(255, 214, 10, 1),
-      0 0 90px 36px rgba(255, 214, 10, 0.55),
+    box-shadow: 0 0 48px 18px rgba(255, 214, 10, 1),
+      0 0 100px 44px rgba(255, 214, 10, 0.6),
       0 15px 40px rgba(255, 255, 255, 0.25);
   }
+}
+
+/* Tijdelijke debug-badge onder de knop. */
+.kratflip-debug {
+  margin: 10px auto 0;
+  max-width: 320px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 214, 10, 0.5);
+  color: #ffd60a;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
 /* Fase 2: de payoff -- een "holy" bloom waarbij de knop van normaal naar de
