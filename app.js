@@ -815,9 +815,9 @@ function closeKratflap() {
 ========================= */
 
 // Word het vaste getal EXACT geraakt, dan lichten de randen van de knop op.
-// Herken je de gloed en STOP je met tikken, dan zwelt hij in ~1s aan en morpht
-// de knop naar de klikbare KRATFLIP?-knop. Tik je toch door, dan is de kans weg
-// -- maar ~20-30 drukken later krijg je automatisch een nieuwe kans.
+// Herken je de gloed en STOP je met tikken, dan zwelt hij ~5s langzaam aan en
+// morpht de knop met een "holy" bloom naar de klikbare KRATFLIP?-knop. Tik je
+// toch door, dan is de kans weg -- maar ~20-30 drukken later een nieuwe kans.
 function registerKratflipPress() {
   if (kratflipDone || kratflipRevealed) return;
 
@@ -839,10 +839,10 @@ function startKratflipGlow() {
   if (!checkBtn) return;
 
   kratflipGlowing = true;
-  checkBtn.classList.add("kratflip-glow"); // rand-gloed die aanzwelt
+  checkBtn.classList.add("kratflip-glow"); // rand-gloed die langzaam aanzwelt
 
   clearTimeout(kratflipMorphTimer);
-  kratflipMorphTimer = setTimeout(morphKratflipButton, 1000);
+  kratflipMorphTimer = setTimeout(morphKratflipButton, 5000);
 }
 
 // Doorheen getikt: gloed weg en pas over 20-30 drukken een nieuwe kans.
