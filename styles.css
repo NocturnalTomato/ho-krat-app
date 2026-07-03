@@ -518,50 +518,70 @@ summary {
    KRATFLAP GAME SHEET
 ========================= */
 
-/* Fase 1: rand-gloed die vanaf het geheime getal in ~1s aanzwelt tot de morph. */
+/* Fase 1: rand-gloed die vanaf het geheime getal ~5s LANGZAAM aanzwelt tot de
+   morph. Begin nauwelijks zichtbaar, eindig gloeiend -- je moet 'm herkennen. */
 .kratflip-glow {
-  animation: kratflipGlowGrow 1s ease-in forwards;
+  animation: kratflipGlowGrow 5s ease-in forwards;
 }
 
 @keyframes kratflipGlowGrow {
   0% {
-    box-shadow: 0 0 6px 1px rgba(255, 214, 10, 0.35),
+    box-shadow: 0 0 3px 0 rgba(255, 214, 10, 0.15),
+      0 15px 40px rgba(255, 255, 255, 0.25);
+  }
+  60% {
+    box-shadow: 0 0 18px 5px rgba(255, 214, 10, 0.6),
       0 15px 40px rgba(255, 255, 255, 0.25);
   }
   100% {
-    box-shadow: 0 0 36px 13px rgba(255, 214, 10, 0.95),
+    box-shadow: 0 0 44px 16px rgba(255, 214, 10, 1),
+      0 0 90px 36px rgba(255, 214, 10, 0.55),
       0 15px 40px rgba(255, 255, 255, 0.25);
   }
 }
 
-/* Fase 2: de knop zelf wordt goud en gloeit intenser. */
+/* Fase 2: de payoff -- een "holy" bloom waarbij de knop van normaal naar de
+   gouden KRATFLIP?-knop barst, en daarna rustig blijft gloeien. */
 .kratflip-reveal-button {
   background: #ffd60a;
   color: #050505;
   font-size: 21px;
   line-height: 1.05;
-  animation: kratflipPop 0.3s ease,
-    kratflipGlowIntense 1.2s ease-in-out 0.3s infinite;
+  animation: kratflipBloom 0.9s cubic-bezier(0.18, 0.9, 0.24, 1) both,
+    kratflipHolyPulse 2.4s ease-in-out 0.9s infinite;
 }
 
-@keyframes kratflipPop {
-  from {
-    transform: scale(0.5);
-    opacity: 0;
+@keyframes kratflipBloom {
+  0% {
+    transform: scale(0.55);
+    background: #fffdf2;
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.95),
+      0 0 50px 26px rgba(255, 245, 200, 0.9);
   }
-  to {
+  45% {
+    transform: scale(1.14);
+    background: #fff4b8;
+    box-shadow: 0 0 70px 34px rgba(255, 246, 205, 0.95),
+      0 0 150px 80px rgba(255, 214, 10, 0.6);
+  }
+  72% {
+    transform: scale(0.96);
+    background: #ffe45c;
+  }
+  100% {
     transform: scale(1);
-    opacity: 1;
+    background: #ffd60a;
+    box-shadow: 0 0 34px 10px rgba(255, 214, 10, 0.85);
   }
 }
 
-@keyframes kratflipGlowIntense {
+@keyframes kratflipHolyPulse {
   0%,
   100% {
-    box-shadow: 0 0 26px 6px rgba(255, 214, 10, 0.65);
+    box-shadow: 0 0 28px 9px rgba(255, 214, 10, 0.6);
   }
   50% {
-    box-shadow: 0 0 52px 18px rgba(255, 214, 10, 0.95);
+    box-shadow: 0 0 60px 22px rgba(255, 214, 10, 0.95);
   }
 }
 
