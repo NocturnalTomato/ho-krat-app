@@ -541,21 +541,6 @@ summary {
   }
 }
 
-/* Tijdelijke debug-badge onder de knop. */
-.kratflip-debug {
-  margin: 10px auto 0;
-  max-width: 320px;
-  padding: 6px 10px;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.55);
-  border: 1px solid rgba(255, 214, 10, 0.5);
-  color: #ffd60a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
 /* Fase 2: de payoff -- een "holy" bloom waarbij de knop van normaal naar de
    gouden KRATFLIP?-knop barst, en daarna rustig blijft gloeien. */
 .kratflip-reveal-button {
