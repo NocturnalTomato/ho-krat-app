@@ -11,7 +11,6 @@ let kratflapUnlocked = false;
 
 // Kratflip: verborgen easter-egg. Per refresh wordt EEN vast willekeurig getal
 // gekozen; word dat exact geraakt, dan verschijnt de kans. Niet persistent.
-const KRATFLIP_DEBUG = true; // tijdelijke debug-badge (later uitzetten)
 let kratflipPressCount = 0;
 let kratflipTarget = randomInt(15, 25);
 let kratflipMorphTimer = null;
@@ -30,7 +29,6 @@ const KRATFLAP_API_URL = "https://ho-kratflap-api.lucdegoeij.workers.dev/scores"
 
 async function init() {
   restoreKratflapUnlock();
-  updateKratflipDebug();
   showSplitserLoading();
   await loadResponses();
 
@@ -834,8 +832,6 @@ function registerKratflipPress() {
   if (kratflipPressCount === kratflipTarget) {
     startKratflipGlow();
   }
-
-  updateKratflipDebug();
 }
 
 function startKratflipGlow() {
@@ -847,7 +843,6 @@ function startKratflipGlow() {
 
   clearTimeout(kratflipMorphTimer);
   kratflipMorphTimer = setTimeout(morphKratflipButton, 5000);
-  updateKratflipDebug();
 }
 
 // Doorheen getikt: gloed weg en pas over 20-30 drukken een nieuwe kans.
@@ -858,7 +853,6 @@ function missKratflip() {
   clearTimeout(kratflipMorphTimer);
   kratflipGlowing = false;
   kratflipTarget = kratflipPressCount + randomInt(20, 30);
-  updateKratflipDebug();
 }
 
 function morphKratflipButton() {
@@ -871,32 +865,6 @@ function morphKratflipButton() {
   checkBtn.classList.remove("kratflip-glow");
   checkBtn.style.display = "none";
   flipBtn.style.display = "";
-  updateKratflipDebug();
-}
-
-// Tijdelijke debug-badge: laat live zien hoeveel clicks je nog van de bloom af
-// zit (en de huidige fase). Uitzetten via KRATFLIP_DEBUG = false.
-function updateKratflipDebug() {
-  const el = document.getElementById("kratflipDebug");
-  if (!el) return;
-
-  if (!KRATFLIP_DEBUG) {
-    el.style.display = "none";
-    return;
-  }
-
-  let phase;
-  if (kratflipDone) phase = "KLAAR (deze sessie)";
-  else if (kratflipRevealed) phase = "KRATFLIP? klikbaar";
-  else if (kratflipGlowing) phase = "GLOED — stop met tikken!";
-  else phase = "tellen";
-
-  const remaining = Math.max(0, kratflipTarget - kratflipPressCount);
-
-  el.style.display = "block";
-  el.textContent =
-    `KF-debug · clicks ${kratflipPressCount}/${kratflipTarget} · ` +
-    `nog ${remaining} tot bloom · ${phase}`;
 }
 
 function startKratflip() {
