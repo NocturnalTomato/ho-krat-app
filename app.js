@@ -556,7 +556,21 @@ function renderPrimaryEventCard(data, event, chances) {
   setText("attendingNames", listNames(event.attending));
   setText("declinedNames", listNames(event.declined));
   setText("unansweredNames", listNames(event.unanswered));
-  setText("lastMinuteDeclinedNames", listLastMinuteDeclined(event.lastMinuteDeclined));
+
+  renderLastMinuteShame(event.lastMinuteDeclined);
+}
+
+function renderLastMinuteShame(items) {
+  const banner = document.getElementById("lastMinuteShame");
+  if (!banner) return;
+
+  if (!items || !items.length) {
+    banner.style.display = "none";
+    return;
+  }
+
+  setText("lastMinuteShameNames", listLastMinuteDeclined(items));
+  banner.style.display = "block";
 }
 
 function renderNextEventCard(data, event) {
