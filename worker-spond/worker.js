@@ -529,14 +529,14 @@ async function fetchSpondData(env) {
   const firstEvent = futureEvents[0] || null;
   const secondEvent = futureEvents[1] || null;
 
-  const toEventOutput = event => ({
+  const toEventOutput = async event => ({
     id: event.id,
     name: event.heading,
     startTimestamp: event.startTimestamp,
     endTimestamp: event.endTimestamp,
     location: event.location || null,
     type: getEventType(event),
-    ...extractAttendance(event, memberLookup)
+    ...(await extractAttendance(event, memberLookup, env))
   });
 
   const output = {
@@ -545,9 +545,9 @@ async function fetchSpondData(env) {
     groupId: targetGroup?.id || null,
     memberCount: Array.isArray(targetGroup?.members) ? targetGroup.members.length : null,
     members: Object.values(memberLookup).sort(),
-    currentEvent: currentEvent ? toEventOutput(currentEvent) : null,
-    upcomingEvent: firstEvent ? toEventOutput(firstEvent) : null,
-    nextEvent: secondEvent ? toEventOutput(secondEvent) : null
+    currentEvent: currentEvent ? await toEventOutput(currentEvent) : null,
+    upcomingEvent: firstEvent ? await toEventOutput(firstEvent) : null,
+    nextEvent: secondEvent ? await toEventOutput(secondEvent) : null
   };
 
   const knhbMatches = await fetchKnhbData(env);
@@ -633,23 +633,73 @@ function personName(personId, memberLookup) {
   return memberLookup[personId] || personId;
 }
 
-function extractAttendance(event, memberLookup) {
+async function extractAttendance(event, memberLookup, env) {
   const responses = event.responses || {};
 
-  const attending = (responses.acceptedIds || []).map(id => personName(id, memberLookup)).sort();
-  const declined = (responses.declinedIds || []).map(id => personName(id, memberLookup)).sort();
+  const acceptedIds = responses.acceptedIds || [];
+  const declinedIds = responses.declinedIds || [];
+
+  const attending = acceptedIds.map(id => personName(id, memberLookup)).sort();
+  const declined = declinedIds.map(id => personName(id, memberLookup)).sort();
   const unanswered = (responses.unansweredIds || []).map(id => personName(id, memberLookup)).sort();
+
+  const lastMinuteDeclinedIds = await trackLastMinuteDeclined(env, event, acceptedIds, declinedIds);
+  const lastMinuteDeclined = lastMinuteDeclinedIds.map(id => personName(id, memberLookup)).sort();
 
   return {
     attending,
     declined,
     unanswered,
+    lastMinuteDeclined,
     counts: {
       attending: attending.length,
       declined: declined.length,
       unanswered: unanswered.length
     }
   };
+}
+
+// A decline counts as "last minute" when the person had previously accepted
+// and switches to declined within 24h of the event start. Spond's API only
+// exposes current response state, not a change history, so we persist each
+// event's previously-seen accepted list in KV and diff it on every fetch to
+// catch the flip. The accumulated last-minute list survives later syncs
+// (e.g. someone else responding) and only drops a person if they re-accept.
+const LAST_MINUTE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+async function trackLastMinuteDeclined(env, event, acceptedIds, declinedIds) {
+  if (!env.LINEUP_KV || !event.id) return [];
+
+  const key = `attendance_history_${event.id}`;
+  const now = new Date();
+  const start = new Date(event.startTimestamp);
+
+  let history = { acceptedIds: [], lastMinuteDeclinedIds: [] };
+  try {
+    const raw = await env.LINEUP_KV.get(key);
+    if (raw) history = JSON.parse(raw);
+  } catch {
+    // Corrupt entry, start fresh.
+  }
+
+  const withinLastMinuteWindow =
+    now.getTime() < start.getTime() && start.getTime() - now.getTime() <= LAST_MINUTE_WINDOW_MS;
+
+  if (withinLastMinuteWindow) {
+    for (const id of declinedIds) {
+      if (history.acceptedIds.includes(id) && !history.lastMinuteDeclinedIds.includes(id)) {
+        history.lastMinuteDeclinedIds.push(id);
+      }
+    }
+  }
+
+  // Drop anyone who is no longer declined (e.g. they switched back to accepted).
+  history.lastMinuteDeclinedIds = history.lastMinuteDeclinedIds.filter(id => declinedIds.includes(id));
+  history.acceptedIds = acceptedIds;
+
+  await env.LINEUP_KV.put(key, JSON.stringify(history), { expirationTtl: 14 * 86400 });
+
+  return history.lastMinuteDeclinedIds;
 }
 
 /* ============================================================
