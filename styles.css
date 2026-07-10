@@ -117,6 +117,27 @@ button:active {
   text-align: center;
 }
 
+.shame-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: rgba(255, 92, 92, 0.14);
+  border: 1px solid rgba(255, 92, 92, 0.35);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.shame-label {
+  color: #ff5c5c;
+  font-weight: 800;
+  margin-right: 6px;
+}
+
+.shame-names {
+  color: #ff5c5c;
+  font-weight: 950;
+}
+
 .stats {
   margin-top: 14px;
   display: grid;
