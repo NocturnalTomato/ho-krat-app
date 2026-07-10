@@ -279,6 +279,14 @@ async function handlePastMatchesGet(env) {
     const token = await loginToSpond(env.SPOND_USERNAME, env.SPOND_PASSWORD);
     const now = new Date();
 
+    // Scope every query to our own group — the Spond account behind
+    // SPOND_USERNAME/SPOND_PASSWORD may belong to other Spond groups too
+    // (e.g. a member's workplace team), and without groupId the API returns
+    // events from every group that account is a member of.
+    const groups = await spondGet("groups/", token);
+    const targetGroup = groups.find(group => group.name === TARGET_GROUP_NAME) || null;
+    const groupIdParam = targetGroup ? `&groupId=${targetGroup.id}` : "";
+
     const twoSeasonsBack = new Date(now);
     twoSeasonsBack.setFullYear(twoSeasonsBack.getFullYear() - 2);
     const minStartTs = twoSeasonsBack.toISOString();
@@ -298,10 +306,10 @@ async function handlePastMatchesGet(env) {
     // We check actual content, not just whether the call threw, because Spond
     // may silently ignore unknown query params and return an empty/future-only list.
     const queries = [
-      `sponds/?max=200&minStartTimestamp=${minStartTs}&maxEndTimestamp=${maxEndTs}`,
-      `sponds/?max=200&maxEndTimestamp=${maxEndTs}`,
-      `sponds/?max=500&scheduled=false`,
-      `sponds/?max=500`,
+      `sponds/?max=200&minStartTimestamp=${minStartTs}&maxEndTimestamp=${maxEndTs}${groupIdParam}`,
+      `sponds/?max=200&maxEndTimestamp=${maxEndTs}${groupIdParam}`,
+      `sponds/?max=500&scheduled=false${groupIdParam}`,
+      `sponds/?max=500${groupIdParam}`,
     ];
 
     let events = [];
@@ -471,9 +479,16 @@ async function fetchSpondData(env) {
   const token = await loginToSpond(env.SPOND_USERNAME, env.SPOND_PASSWORD);
 
   const groups = await spondGet("groups/", token);
-  const events = await spondGet("sponds/?max=50&scheduled=false", token);
-
   const targetGroup = groups.find(group => group.name === TARGET_GROUP_NAME) || null;
+
+  // Scope the events query to our own group — the Spond account behind
+  // SPOND_USERNAME/SPOND_PASSWORD may belong to other Spond groups too
+  // (e.g. a member's workplace team), and without groupId the API returns
+  // events from every group that account is a member of.
+  const eventsPath = targetGroup
+    ? `sponds/?max=50&scheduled=false&groupId=${targetGroup.id}`
+    : "sponds/?max=50&scheduled=false";
+  const events = await spondGet(eventsPath, token);
   const memberLookup = buildMemberLookup(targetGroup);
 
   const now = new Date();

@@ -91,11 +91,19 @@ async def main():
 
     try:
         groups = await s.get_groups()
-        events = await s.get_events(max_events=50)
 
         target_group = next(
             (g for g in groups if g.get("name") == TARGET_GROUP_NAME),
             None,
+        )
+
+        # Scope to our own group — the Spond account behind SPOND_USERNAME/
+        # SPOND_PASSWORD may belong to other Spond groups too (e.g. a
+        # member's workplace team), and without group_id get_events()
+        # returns events from every group that account is a member of.
+        events = await s.get_events(
+            max_events=50,
+            group_id=target_group.get("id") if target_group else None,
         )
 
         member_lookup = build_member_lookup(target_group)
