@@ -139,7 +139,8 @@ button:active {
 }
 
 .outfit-banner {
-  margin-bottom: 14px;
+  margin-top: -6px;
+  margin-bottom: 20px;
   padding: 14px 18px;
   border-radius: 18px;
   background: rgba(255, 204, 0, 0.16);
