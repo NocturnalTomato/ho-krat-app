@@ -111,7 +111,7 @@ export default {
 };
 
 async function handleLineupGet(env) {
-  const defaultLineup = { formation: "4-3-3", positions: {}, extraPlayers: [], bench: [] };
+  const defaultLineup = { formation: "4-3-3", positions: {}, extraPlayers: [], bench: [], outfitColor: "black" };
 
   if (!env.LINEUP_KV) {
     return json(defaultLineup);
@@ -126,6 +126,7 @@ async function handleLineupGet(env) {
   try {
     const data = JSON.parse(raw);
     if (!Array.isArray(data.bench)) data.bench = [];
+    if (data.outfitColor !== "white") data.outfitColor = "black";
     return json(data);
   } catch {
     return json(defaultLineup);
@@ -140,7 +141,7 @@ async function handleLineupPost(request, env) {
     return json({ success: false, error: "Ongeldige JSON" }, { status: 400 });
   }
 
-  const { password, formation, positions, extraPlayers, bench } = body;
+  const { password, formation, positions, extraPlayers, bench, outfitColor } = body;
 
   if (!env.CAPTAIN_PASSWORD) {
     return json({ success: false, error: "Server niet geconfigureerd (geen secret)" }, { status: 500 });
@@ -159,6 +160,7 @@ async function handleLineupPost(request, env) {
     positions: positions && typeof positions === "object" && !Array.isArray(positions) ? positions : {},
     extraPlayers: Array.isArray(extraPlayers) ? extraPlayers : [],
     bench: Array.isArray(bench) ? bench : [],
+    outfitColor: outfitColor === "white" ? "white" : "black",
     updatedAt: new Date().toISOString()
   };
 

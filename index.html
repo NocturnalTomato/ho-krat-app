@@ -204,6 +204,9 @@
   <div class="spond-status" id="splitserStatus">Splitser-data laden...</div>
 </div>
 
+    <!-- OPSTELLING: Tenue-waarschuwing -->
+    <div class="outfit-banner" id="lineupOutfitBanner" style="display:none;">LET OP - WE SPELEN IN WIT</div>
+
     <!-- OPSTELLING CARD -->
     <div class="lineup-card" id="lineupCard">
       <div class="lineup-header">
@@ -219,6 +222,11 @@
         <button class="lineup-form-btn" type="button" data-formation="4-4-2" onclick="lineupSetFormation('4-4-2')">4-4-2</button>
         <button class="lineup-form-btn" type="button" data-formation="3-4-3" onclick="lineupSetFormation('3-4-3')">3-4-3</button>
         <button class="lineup-form-btn" type="button" data-formation="3-5-2" onclick="lineupSetFormation('3-5-2')">3-5-2</button>
+      </div>
+
+      <div class="lineup-formation-row" id="lineupOutfitRow" style="display:none;">
+        <button class="lineup-form-btn lineup-outfit-btn" type="button" data-outfit="black" onclick="lineupSetOutfitColor('black')">Standaard</button>
+        <button class="lineup-form-btn lineup-outfit-btn" type="button" data-outfit="white" onclick="lineupSetOutfitColor('white')">Wit</button>
       </div>
 
       <div class="lineup-field-wrap" id="lineupFieldWrap">
