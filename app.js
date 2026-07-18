@@ -1085,7 +1085,7 @@ let statsViewingSeason = null;
 let expandedStatsCharts = [];
 let pastSpondMatches = null; // cached from /past-matches
 
-let lineupData = { formation: "4-3-3", positions: {}, extraPlayers: [] };
+let lineupData = { formation: "4-3-3", positions: {}, extraPlayers: [], outfitColor: "black" };
 let lineupEditMode = false;
 let lineupPassword = null;
 let lineupSelectedPlayer = null;
@@ -1157,6 +1157,7 @@ async function loadLineup() {
       positions: data.positions || {},
       extraPlayers: Array.isArray(data.extraPlayers) ? data.extraPlayers : [],
       bench: Array.isArray(data.bench) ? data.bench : [],
+      outfitColor: data.outfitColor === "white" ? "white" : "black",
       updatedAt: data.updatedAt || null
     };
     lineupExtraPlayers = [...lineupData.extraPlayers];
@@ -1167,6 +1168,7 @@ async function loadLineup() {
   renderLineupField(lineupData, false);
   renderLineupBench();
   renderLineupMeta();
+  renderLineupOutfitBanner();
 }
 
 function renderLineupField(data, editable) {
@@ -1186,6 +1188,7 @@ function renderLineupField(data, editable) {
     chip.className = [
       "lineup-chip-slot",
       playerName ? "" : "empty",
+      playerName && data.outfitColor === "white" ? "outfit-white" : "",
       editable ? "editable" : ""
     ].filter(Boolean).join(" ");
 
@@ -1268,7 +1271,8 @@ async function lineupPasswordSubmit() {
         formation: lineupData.formation,
         positions: lineupData.positions,
         extraPlayers: lineupExtraPlayers,
-        bench: lineupData.bench || []
+        bench: lineupData.bench || [],
+        outfitColor: lineupData.outfitColor || "black"
       })
     });
 
@@ -1293,10 +1297,12 @@ function lineupEnableEditMode() {
 
   document.getElementById("lineupEditBtn").textContent = "Sluiten";
   document.getElementById("lineupFormationRow").style.display = "flex";
+  document.getElementById("lineupOutfitRow").style.display = "flex";
   document.getElementById("lineupBankWrap").style.display = "block";
   document.getElementById("lineupSaveRow").style.display = "block";
 
   lineupUpdateFormationButtons();
+  lineupUpdateOutfitButtons();
   renderLineupField(lineupData, true);
   renderLineupBank();
   renderLineupBench();
@@ -1311,6 +1317,7 @@ function lineupDisableEditMode() {
 
   document.getElementById("lineupEditBtn").textContent = "Bewerken";
   document.getElementById("lineupFormationRow").style.display = "none";
+  document.getElementById("lineupOutfitRow").style.display = "none";
   document.getElementById("lineupBankWrap").style.display = "none";
   document.getElementById("lineupSaveRow").style.display = "none";
   document.getElementById("lineupStatus").textContent = "";
@@ -1322,9 +1329,28 @@ function lineupDisableEditMode() {
 }
 
 function lineupUpdateFormationButtons() {
-  document.querySelectorAll(".lineup-form-btn").forEach(btn => {
+  document.querySelectorAll(".lineup-form-btn[data-formation]").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.formation === lineupData.formation);
   });
+}
+
+function lineupUpdateOutfitButtons() {
+  document.querySelectorAll(".lineup-outfit-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.outfit === (lineupData.outfitColor || "black"));
+  });
+}
+
+function lineupSetOutfitColor(color) {
+  lineupData.outfitColor = color === "white" ? "white" : "black";
+  lineupUpdateOutfitButtons();
+  renderLineupField(lineupData, lineupEditMode);
+  renderLineupOutfitBanner();
+}
+
+function renderLineupOutfitBanner() {
+  const banner = document.getElementById("lineupOutfitBanner");
+  if (!banner) return;
+  banner.style.display = lineupData.outfitColor === "white" ? "block" : "none";
 }
 
 function lineupSetFormation(formation) {
@@ -1553,7 +1579,8 @@ async function lineupSave() {
         formation: lineupData.formation,
         positions: lineupData.positions,
         extraPlayers: lineupExtraPlayers,
-        bench: lineupData.bench || []
+        bench: lineupData.bench || [],
+        outfitColor: lineupData.outfitColor || "black"
       })
     });
 
