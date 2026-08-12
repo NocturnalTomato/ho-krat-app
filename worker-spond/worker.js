@@ -1008,12 +1008,25 @@ async function handleStandings(env, url) {
         }))
       : [{ id: String(requestedPouleId), label: inner.competition?.name || `Poule ${requestedPouleId}` }];
 
-    return json({
+    const result = {
       poule_id: String(requestedPouleId),
       competition: inner.competition?.name ?? null,
       poule_options: pouleOptions,
       standings,
-    });
+    };
+
+    // Temporary diagnostics: ?debug=1 echoes what HockeyWeerelt actually returned for
+    // the team/poules discovery, to find out why a newly-published poule isn't showing up.
+    if (url.searchParams.get("debug") === "1") {
+      result.debug = {
+        team_id: teamId,
+        cached_recent_poule_id: recentPouleId,
+        raw_team_poules: teamPoules,
+        newest_poule_id: newestPouleId,
+      };
+    }
+
+    return json(result);
   } catch (e) {
     return json({ error: e.message }, { status: 500 });
   }
