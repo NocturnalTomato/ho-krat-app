@@ -1194,6 +1194,9 @@ summary {
   font-family: inherit;
   outline: none;
   cursor: pointer;
+  max-width: 100%;
+  min-width: 0;
+  text-overflow: ellipsis;
 }
 
 .stats-season-select option {
@@ -1737,10 +1740,16 @@ summary {
 
 .standings-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 14px;
+  min-width: 0;
+}
+
+.standings-header > div {
+  min-width: 0;
 }
 
 .standings-competition {

@@ -911,14 +911,13 @@ async function fetchHwPlayedMatches(env) {
    GET /probe/clubi         test clubi.hockeyweerelt.nl
 ============================================================ */
 
-// Build a "2026-2027 Competitienaam" style label for a poule, using the earliest
-// scheduled match date to derive the season since HockeyWeerelt doesn't expose one directly.
+// Build a "2026-2027" season label for a poule, using the earliest scheduled match
+// date to derive the season since HockeyWeerelt doesn't expose one directly.
 function derivePouleLabel(pouleDetail, pouleId) {
-  const compName = pouleDetail?.competition?.name || `Poule ${pouleId}`;
   const matches = Array.isArray(pouleDetail?.matches) ? pouleDetail.matches : [];
   const firstDate = matches.map(m => m.date).filter(Boolean).sort()[0];
   const year = firstDate ? new Date(firstDate).getFullYear() : null;
-  return year ? `${year}-${year + 1} ${compName}` : compName;
+  return year ? `${year}-${year + 1}` : (pouleDetail?.competition?.name || `Poule ${pouleId}`);
 }
 
 // ---------- Poule standings ----------
