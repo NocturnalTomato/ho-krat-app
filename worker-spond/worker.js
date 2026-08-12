@@ -911,25 +911,28 @@ async function fetchHwPlayedMatches(env) {
    GET /probe/clubi         test clubi.hockeyweerelt.nl
 ============================================================ */
 
+// Build a "2026-2027 Competitienaam" style label for a poule, using the earliest
+// scheduled match date to derive the season since HockeyWeerelt doesn't expose one directly.
+function derivePouleLabel(pouleDetail, pouleId) {
+  const compName = pouleDetail?.competition?.name || `Poule ${pouleId}`;
+  const matches = Array.isArray(pouleDetail?.matches) ? pouleDetail.matches : [];
+  const firstDate = matches.map(m => m.date).filter(Boolean).sort()[0];
+  const year = firstDate ? new Date(firstDate).getFullYear() : null;
+  return year ? `${year}-${year + 1} ${compName}` : compName;
+}
+
 // ---------- Poule standings ----------
 async function handleStandings(env, url) {
   try {
     const isDebug = url.searchParams.get("debug") === "1";
     const { uuid, token } = await hwGetOrCreateDevice(env);
 
-    // Try KV-cached IDs first (populated by probe or previous standings call)
-    let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_team_id") : null;
-    let recentPouleId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_recent_poule_id") : null;
-
-    let debugTeamObject = null;
-    let debugClubObject = null;
-    let debugTeamList = null;
-
-    // Discovery: runs when the team ID isn't cached yet, or when the recent-poule
-    // cache has expired (e.g. a new season's poule went live) — without this,
-    // a still-cached team ID would keep discovery from ever refreshing the poule.
-    // Also always re-runs in debug mode so the raw team/club objects can be inspected.
-    if (!teamId || !recentPouleId || isDebug) {
+    // Only the club reference is stable enough to cache long-term; the team's
+    // recent_poule_id must always be read fresh below so a new season's poule is
+    // picked up immediately instead of waiting on a cache TTL (that was the bug:
+    // a still-valid but stale cached poule id never got re-checked against HockeyWeerelt).
+    let clubRef = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_club_ref") : null;
+    if (!clubRef) {
       const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
       const clubs = clubsData.data || clubsData;
       const gg = Array.isArray(clubs) && clubs.find(c => {
@@ -937,64 +940,54 @@ async function handleStandings(env, url) {
         return n.includes("groen") && n.includes("geel");
       });
       if (!gg) return json({ error: "Club niet gevonden" }, { status: 404 });
-      if (isDebug) debugClubObject = gg;
+      clubRef = gg.federation_reference_id || gg.id;
+      if (env.LINEUP_KV) await env.LINEUP_KV.put("hw_club_ref", String(clubRef), { expirationTtl: 86400 * 90 });
+    }
 
-      const clubRef = gg.federation_reference_id || gg.id;
-      const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
-      const teamList = clubData.data?.teams || clubData.teams || [];
-      if (isDebug) debugTeamList = teamList;
-      const h8 = Array.isArray(teamList) && teamList.find(t => {
-        const short = (t.short_name || "").toLowerCase().trim();
-        return short === "h8" || short === "8";
-      });
-      if (!h8) return json({ error: "Team H8 niet gevonden" }, { status: 404 });
-      if (isDebug) debugTeamObject = h8;
+    const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
+    const teamList = clubData.data?.teams || clubData.teams || [];
+    const h8 = Array.isArray(teamList) && teamList.find(t => {
+      const short = (t.short_name || "").toLowerCase().trim();
+      return short === "h8" || short === "8";
+    });
+    if (!h8) return json({ error: "Team H8 niet gevonden" }, { status: 404 });
 
-      teamId = String(h8.id);
-      if (h8.recent_poule_id) recentPouleId = String(h8.recent_poule_id);
+    const teamId = String(h8.id);
+    const currentPouleId = h8.recent_poule_id ? String(h8.recent_poule_id) : null;
 
-      if (env.LINEUP_KV) {
-        await env.LINEUP_KV.put("hw_team_id", teamId, { expirationTtl: 86400 * 30 });
-        if (recentPouleId) await env.LINEUP_KV.put("hw_recent_poule_id", recentPouleId, { expirationTtl: 86400 * 7 });
+    // Maintain our own poule history in KV, since HockeyWeerelt has no working
+    // "all poules for this team" endpoint (/teams/{id}/poules 404s). Whenever the
+    // team's current poule changes (season transition), archive the previous one
+    // so it stays selectable going forward.
+    let history = [];
+    if (env.LINEUP_KV) {
+      const historyRaw = await env.LINEUP_KV.get("hw_poule_history");
+      if (historyRaw) {
+        try { history = JSON.parse(historyRaw); } catch (_) { history = []; }
       }
     }
+    const lastSeenPouleId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_last_seen_poule_id") : null;
+    // Fall back to the known previous-season id so the very first run after this
+    // deploy (no hw_last_seen_poule_id cached yet) seeds history with last season too.
+    const effectiveLastSeen = lastSeenPouleId || "174656";
 
-    // Try to get all poules this team has participated in (for season selector)
-    let teamPoules = [];
-    let teamPoulesError = null;
-    let teamPoulesRaw = null;
-    try {
-      const poulesData = await hwRequest(`/teams/${teamId}/poules`, {}, "GET", uuid, token);
-      teamPoulesRaw = poulesData;
-      const arr = poulesData.data || poulesData;
-      if (Array.isArray(arr) && arr.length > 0) teamPoules = arr;
-    } catch (e) {
-      teamPoulesError = e.message;
+    if (env.LINEUP_KV && currentPouleId && currentPouleId !== effectiveLastSeen) {
+      if (!history.some(h => h.id === effectiveLastSeen)) {
+        try {
+          const oldPouleData = await hwRequest(`/poules/${effectiveLastSeen}`, {}, "GET", uuid, token);
+          const oldInner = oldPouleData.data || oldPouleData;
+          history.push({ id: effectiveLastSeen, label: derivePouleLabel(oldInner, effectiveLastSeen) });
+          await env.LINEUP_KV.put("hw_poule_history", JSON.stringify(history));
+        } catch (_) { /* couldn't fetch the superseded poule's details; skip archiving it */ }
+      }
     }
-
-    // Sort poules newest-first. HockeyWeerelt allocates poule ids sequentially per
-    // season, so the highest numeric id is the most recent one — this lets us always
-    // auto-pick the newest poule instead of trusting a possibly-stale cached/hardcoded id,
-    // and also gives the season selector a newest-first ordering.
-    const sortedTeamPoules = [...teamPoules].sort((a, b) => {
-      const idA = Number(a.id ?? a.poule_id) || 0;
-      const idB = Number(b.id ?? b.poule_id) || 0;
-      return idB - idA;
-    });
-    const newestPouleId = sortedTeamPoules.length > 0
-      ? String(sortedTeamPoules[0].id ?? sortedTeamPoules[0].poule_id)
-      : null;
+    if (env.LINEUP_KV && currentPouleId && currentPouleId !== lastSeenPouleId) {
+      await env.LINEUP_KV.put("hw_last_seen_poule_id", currentPouleId);
+    }
 
     // Determine which poule to show: an explicit ?poule_id= wins (season selector),
-    // otherwise default to the newest poule we just derived, falling back to the
-    // cached/hardcoded id only if discovery of teamPoules failed entirely.
-    const requestedPouleId = url.searchParams.get("poule_id") || newestPouleId || recentPouleId || "174656";
-
-    // Keep the KV pointer in sync with the real newest poule so future requests
-    // (and the 7-day TTL discovery skip above) reflect reality, not a stale value.
-    if (env.LINEUP_KV && newestPouleId && newestPouleId !== recentPouleId) {
-      await env.LINEUP_KV.put("hw_recent_poule_id", newestPouleId, { expirationTtl: 86400 * 7 });
-    }
+    // otherwise default to the freshly-read current poule.
+    const requestedPouleId = url.searchParams.get("poule_id") || currentPouleId || lastSeenPouleId || "174656";
 
     // Fetch the poule (standings + competition info are embedded here)
     const pouleData = await hwRequest(`/poules/${requestedPouleId}`, {}, "GET", uuid, token);
@@ -1014,13 +1007,17 @@ async function handleStandings(env, url) {
       points: s.points ?? 0,
     }));
 
-    // Build poule options for the season selector (newest first)
-    const pouleOptions = sortedTeamPoules.length > 1
-      ? sortedTeamPoules.map(p => ({
-          id: String(p.id ?? p.poule_id),
-          label: p.name || p.competition?.name || String(p.id ?? p.poule_id),
-        }))
-      : [{ id: String(requestedPouleId), label: inner.competition?.name || `Poule ${requestedPouleId}` }];
+    // Build poule options for the season selector: the current poule plus everything
+    // in our accumulated history, newest first (higher poule id = more recent).
+    const optionsById = new Map();
+    optionsById.set(String(requestedPouleId), {
+      id: String(requestedPouleId),
+      label: derivePouleLabel(inner, requestedPouleId),
+    });
+    for (const h of history) {
+      if (!optionsById.has(h.id)) optionsById.set(h.id, h);
+    }
+    const pouleOptions = [...optionsById.values()].sort((a, b) => Number(b.id) - Number(a.id));
 
     const result = {
       poule_id: String(requestedPouleId),
@@ -1029,20 +1026,13 @@ async function handleStandings(env, url) {
       standings,
     };
 
-    // Temporary diagnostics: ?debug=1 echoes what HockeyWeerelt actually returned for
-    // the team/poules discovery, to find out why a newly-published poule isn't showing up.
     if (isDebug) {
       result.debug = {
         team_id: teamId,
-        cached_recent_poule_id: recentPouleId,
-        raw_team_poules: teamPoules,
-        team_poules_error: teamPoulesError,
-        team_poules_raw_response: teamPoulesRaw,
-        newest_poule_id: newestPouleId,
-        raw_club_object: debugClubObject,
-        raw_team_object: debugTeamObject,
-        raw_team_list: debugTeamList,
-        raw_poule_detail: inner,
+        current_poule_id_from_hw: currentPouleId,
+        last_seen_poule_id: lastSeenPouleId,
+        poule_history: history,
+        raw_team_object: h8,
       };
     }
 
