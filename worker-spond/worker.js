@@ -914,16 +914,22 @@ async function fetchHwPlayedMatches(env) {
 // ---------- Poule standings ----------
 async function handleStandings(env, url) {
   try {
+    const isDebug = url.searchParams.get("debug") === "1";
     const { uuid, token } = await hwGetOrCreateDevice(env);
 
     // Try KV-cached IDs first (populated by probe or previous standings call)
     let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_team_id") : null;
     let recentPouleId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_recent_poule_id") : null;
 
+    let debugTeamObject = null;
+    let debugClubObject = null;
+    let debugTeamList = null;
+
     // Discovery: runs when the team ID isn't cached yet, or when the recent-poule
     // cache has expired (e.g. a new season's poule went live) — without this,
     // a still-cached team ID would keep discovery from ever refreshing the poule.
-    if (!teamId || !recentPouleId) {
+    // Also always re-runs in debug mode so the raw team/club objects can be inspected.
+    if (!teamId || !recentPouleId || isDebug) {
       const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
       const clubs = clubsData.data || clubsData;
       const gg = Array.isArray(clubs) && clubs.find(c => {
@@ -931,15 +937,18 @@ async function handleStandings(env, url) {
         return n.includes("groen") && n.includes("geel");
       });
       if (!gg) return json({ error: "Club niet gevonden" }, { status: 404 });
+      if (isDebug) debugClubObject = gg;
 
       const clubRef = gg.federation_reference_id || gg.id;
       const clubData = await hwRequest(`/clubs/${clubRef}`, {}, "GET", uuid, token);
       const teamList = clubData.data?.teams || clubData.teams || [];
+      if (isDebug) debugTeamList = teamList;
       const h8 = Array.isArray(teamList) && teamList.find(t => {
         const short = (t.short_name || "").toLowerCase().trim();
         return short === "h8" || short === "8";
       });
       if (!h8) return json({ error: "Team H8 niet gevonden" }, { status: 404 });
+      if (isDebug) debugTeamObject = h8;
 
       teamId = String(h8.id);
       if (h8.recent_poule_id) recentPouleId = String(h8.recent_poule_id);
@@ -1022,7 +1031,7 @@ async function handleStandings(env, url) {
 
     // Temporary diagnostics: ?debug=1 echoes what HockeyWeerelt actually returned for
     // the team/poules discovery, to find out why a newly-published poule isn't showing up.
-    if (url.searchParams.get("debug") === "1") {
+    if (isDebug) {
       result.debug = {
         team_id: teamId,
         cached_recent_poule_id: recentPouleId,
@@ -1030,6 +1039,10 @@ async function handleStandings(env, url) {
         team_poules_error: teamPoulesError,
         team_poules_raw_response: teamPoulesRaw,
         newest_poule_id: newestPouleId,
+        raw_club_object: debugClubObject,
+        raw_team_object: debugTeamObject,
+        raw_team_list: debugTeamList,
+        raw_poule_detail: inner,
       };
     }
 
