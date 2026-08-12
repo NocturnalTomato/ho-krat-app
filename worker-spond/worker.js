@@ -958,8 +958,29 @@ async function handleStandings(env, url) {
       if (Array.isArray(arr) && arr.length > 0) teamPoules = arr;
     } catch (_) {}
 
-    // Determine which poule to show
-    const requestedPouleId = url.searchParams.get("poule_id") || recentPouleId || "174656";
+    // Sort poules newest-first. HockeyWeerelt allocates poule ids sequentially per
+    // season, so the highest numeric id is the most recent one — this lets us always
+    // auto-pick the newest poule instead of trusting a possibly-stale cached/hardcoded id,
+    // and also gives the season selector a newest-first ordering.
+    const sortedTeamPoules = [...teamPoules].sort((a, b) => {
+      const idA = Number(a.id ?? a.poule_id) || 0;
+      const idB = Number(b.id ?? b.poule_id) || 0;
+      return idB - idA;
+    });
+    const newestPouleId = sortedTeamPoules.length > 0
+      ? String(sortedTeamPoules[0].id ?? sortedTeamPoules[0].poule_id)
+      : null;
+
+    // Determine which poule to show: an explicit ?poule_id= wins (season selector),
+    // otherwise default to the newest poule we just derived, falling back to the
+    // cached/hardcoded id only if discovery of teamPoules failed entirely.
+    const requestedPouleId = url.searchParams.get("poule_id") || newestPouleId || recentPouleId || "174656";
+
+    // Keep the KV pointer in sync with the real newest poule so future requests
+    // (and the 7-day TTL discovery skip above) reflect reality, not a stale value.
+    if (env.LINEUP_KV && newestPouleId && newestPouleId !== recentPouleId) {
+      await env.LINEUP_KV.put("hw_recent_poule_id", newestPouleId, { expirationTtl: 86400 * 7 });
+    }
 
     // Fetch the poule (standings + competition info are embedded here)
     const pouleData = await hwRequest(`/poules/${requestedPouleId}`, {}, "GET", uuid, token);
@@ -979,9 +1000,9 @@ async function handleStandings(env, url) {
       points: s.points ?? 0,
     }));
 
-    // Build poule options for the season selector
-    const pouleOptions = teamPoules.length > 1
-      ? teamPoules.map(p => ({
+    // Build poule options for the season selector (newest first)
+    const pouleOptions = sortedTeamPoules.length > 1
+      ? sortedTeamPoules.map(p => ({
           id: String(p.id ?? p.poule_id),
           label: p.name || p.competition?.name || String(p.id ?? p.poule_id),
         }))
