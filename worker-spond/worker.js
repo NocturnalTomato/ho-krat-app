@@ -952,11 +952,16 @@ async function handleStandings(env, url) {
 
     // Try to get all poules this team has participated in (for season selector)
     let teamPoules = [];
+    let teamPoulesError = null;
+    let teamPoulesRaw = null;
     try {
       const poulesData = await hwRequest(`/teams/${teamId}/poules`, {}, "GET", uuid, token);
+      teamPoulesRaw = poulesData;
       const arr = poulesData.data || poulesData;
       if (Array.isArray(arr) && arr.length > 0) teamPoules = arr;
-    } catch (_) {}
+    } catch (e) {
+      teamPoulesError = e.message;
+    }
 
     // Sort poules newest-first. HockeyWeerelt allocates poule ids sequentially per
     // season, so the highest numeric id is the most recent one — this lets us always
@@ -1022,6 +1027,8 @@ async function handleStandings(env, url) {
         team_id: teamId,
         cached_recent_poule_id: recentPouleId,
         raw_team_poules: teamPoules,
+        team_poules_error: teamPoulesError,
+        team_poules_raw_response: teamPoulesRaw,
         newest_poule_id: newestPouleId,
       };
     }
