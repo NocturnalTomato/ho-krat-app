@@ -920,8 +920,10 @@ async function handleStandings(env, url) {
     let teamId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_team_id") : null;
     let recentPouleId = env.LINEUP_KV ? await env.LINEUP_KV.get("hw_recent_poule_id") : null;
 
-    // Discovery: only runs when no cached team ID
-    if (!teamId) {
+    // Discovery: runs when the team ID isn't cached yet, or when the recent-poule
+    // cache has expired (e.g. a new season's poule went live) — without this,
+    // a still-cached team ID would keep discovery from ever refreshing the poule.
+    if (!teamId || !recentPouleId) {
       const clubsData = await hwRequest("/clubs", {}, "GET", uuid, token);
       const clubs = clubsData.data || clubsData;
       const gg = Array.isArray(clubs) && clubs.find(c => {

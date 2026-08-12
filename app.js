@@ -2618,8 +2618,10 @@ async function loadStandings() {
 
     for (const s of data.standings) {
       const isGG = s.team_id === 3768 ||
-        (s.team_name || "").toLowerCase().includes("groen") ||
-        (s.team_name || "").toLowerCase().includes("geel");
+        (s.team_id == null && (
+          (s.team_name || "").toLowerCase().includes("groen") ||
+          (s.team_name || "").toLowerCase().includes("geel")
+        ));
       const rowClass = isGG ? ' class="standings-gg"' : "";
       const pim = s.points_deducted > 0 ? s.points_deducted : "-";
       html += `
