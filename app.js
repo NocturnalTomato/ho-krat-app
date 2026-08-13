@@ -2562,6 +2562,9 @@ init();
 
 const STANDINGS_URL = "https://ho-krat-spond-trigger.lucdegoeij.workers.dev/standings";
 let standingsPouleId = null;
+// Seasons stay in the selector once we've seen them (id -> label). A response for
+// one season shouldn't be able to remove the others from the dropdown.
+const standingsSeasonOptions = new Map();
 
 async function loadStandings() {
   const body = document.getElementById("standingsBody");
@@ -2579,13 +2582,25 @@ async function loadStandings() {
 
     // Season selector — only show when multiple poules are available
     const sel = document.getElementById("standingsSeasonSelect");
-    if (sel && data.poule_options && data.poule_options.length > 1) {
-      sel.innerHTML = data.poule_options.map(p =>
-        `<option value="${escapeHtml(String(p.id))}" ${String(p.id) === String(data.poule_id) ? "selected" : ""}>${escapeHtml(p.label)}</option>`
-      ).join("");
-      sel.style.display = "";
-    } else if (sel) {
-      sel.style.display = "none";
+    if (sel) {
+      for (const p of (data.poule_options || [])) {
+        if (p && p.id != null) standingsSeasonOptions.set(String(p.id), String(p.label ?? p.id));
+      }
+      const activeId = data.poule_id != null
+        ? String(data.poule_id)
+        : (standingsPouleId != null ? String(standingsPouleId) : null);
+      if (activeId && !standingsSeasonOptions.has(activeId)) standingsSeasonOptions.set(activeId, activeId);
+
+      if (standingsSeasonOptions.size > 1) {
+        // Newest season first (higher poule id = more recent)
+        const opts = [...standingsSeasonOptions.entries()].sort((a, b) => Number(b[0]) - Number(a[0]));
+        sel.innerHTML = opts.map(([id, label]) =>
+          `<option value="${escapeHtml(id)}"${id === activeId ? " selected" : ""}>${escapeHtml(label)}</option>`
+        ).join("");
+        sel.style.display = "";
+      } else {
+        sel.style.display = "none";
+      }
     }
 
     if (!data.standings || data.standings.length === 0) {

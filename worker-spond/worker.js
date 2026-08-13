@@ -920,6 +920,24 @@ function derivePouleLabel(pouleDetail, pouleId) {
   return year ? `${year}-${year + 1}` : (pouleDetail?.competition?.name || `Poule ${pouleId}`);
 }
 
+// Season label for a poule we aren't already fetching in full. Cached in KV so
+// listing a season in the selector doesn't cost an extra HTTP fetch on every load.
+async function lookupPouleLabel(env, uuid, token, pouleId) {
+  const id = String(pouleId);
+  const cacheKey = `hw_poule_label_${id}`;
+  if (env.LINEUP_KV) {
+    const cached = await env.LINEUP_KV.get(cacheKey);
+    if (cached) return cached;
+  }
+  let label = `Poule ${id}`;
+  try {
+    const data = await hwRequest(`/poules/${id}`, {}, "GET", uuid, token);
+    label = derivePouleLabel(data.data || data, id);
+  } catch (_) { /* keep the generic label rather than dropping the season entirely */ }
+  if (env.LINEUP_KV) await env.LINEUP_KV.put(cacheKey, label, { expirationTtl: 86400 * 30 });
+  return label;
+}
+
 // ---------- Poule standings ----------
 async function handleStandings(env, url) {
   try {
@@ -1006,13 +1024,23 @@ async function handleStandings(env, url) {
       points: s.points ?? 0,
     }));
 
-    // Build poule options for the season selector: the current poule plus everything
-    // in our accumulated history, newest first (higher poule id = more recent).
+    // Build poule options for the season selector: the requested poule, the current
+    // poule and everything in our accumulated history, newest first (higher poule id
+    // = more recent). The current poule must be listed explicitly: it only lands in
+    // history once it has been superseded, so while an older season is being viewed
+    // it would otherwise be missing from the options and the user could not get back.
     const optionsById = new Map();
     optionsById.set(String(requestedPouleId), {
       id: String(requestedPouleId),
       label: derivePouleLabel(inner, requestedPouleId),
     });
+    const currentId = currentPouleId || lastSeenPouleId;
+    if (currentId && !optionsById.has(String(currentId))) {
+      optionsById.set(String(currentId), {
+        id: String(currentId),
+        label: await lookupPouleLabel(env, uuid, token, currentId),
+      });
+    }
     for (const h of history) {
       if (!optionsById.has(h.id)) optionsById.set(h.id, h);
     }
