@@ -1,8 +1,8 @@
 {
-  "updatedAt": "2026-08-14T06:08:57.310846+00:00",
+  "updatedAt": "2026-08-15T05:19:31.040394+00:00",
   "team": "Groen Geel - H8",
   "groupId": "C2F9BB5402A944DE934B55DB9D136EEA",
-  "memberCount": 23,
+  "memberCount": 22,
   "upcomingEvent": {
     "id": "25D11EBFF27D4DC98F9F890EEC46CBA5",
     "name": "Training",
@@ -26,7 +26,6 @@
       "Bruno Recordon",
       "Floris Hage",
       "Jenne",
-      "Joost Sleddering",
       "Luc de Goeij",
       "Rikkert Verberne",
       "Victor Peet"
@@ -41,7 +40,7 @@
     ],
     "counts": {
       "attending": 9,
-      "declined": 8,
+      "declined": 7,
       "unanswered": 6
     }
   }
